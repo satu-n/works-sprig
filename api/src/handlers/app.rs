@@ -1,4 +1,4 @@
-// pub mod home;
+pub mod home;
 // pub mod text;
 // pub mod clone;
 // pub mod exec;

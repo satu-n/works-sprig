@@ -60,9 +60,22 @@ async fn main() -> std::io::Result<()> {
                     .route(web::delete().to(handlers::auth::logout)),
                 )
                 .service(web::scope("/app")
-
+                    .wrap_fn(|req, srv| {
+                        use actix_identity::RequestIdentity;
+                        if req.get_identity().is_some() {
+                            use actix_service::Service;
+                            srv.call(req)
+                        } else {
+                            use actix_web::{HttpResponse, dev};
+                            use futures::future::{Either, ok};
+                            Either::Right(ok(dev::ServiceResponse::new(
+                                req.into_parts().0,
+                                HttpResponse::Unauthorized().finish()
+                            )))
+                        }
+                    })
                     .service(web::resource("/tasks")
-                        // .route(web::get().to(handlers::app::home::home))
+                        .route(web::get().to(handlers::app::home::home))
                         // .route(web::post().to(handlers::app::text::text))
                         // .route(web::put().to(handlers::app::clone::clone))
                         // .route(web::delete().to(handlers::app::exec::exec)),

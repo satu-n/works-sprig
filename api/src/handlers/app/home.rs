@@ -6,14 +6,19 @@ use crate::models;
 use crate::errors;
 use crate::utils;
 
-#[derive(Serialize)]
-pub struct ResHome {
-    tasks: Vec<Task>,
+// #[derive(Serialize)]
+// pub struct ResHome {
+//     tasks: Vec<Task>,
+// }
+
+#[derive(Deserialize)]
+pub struct Q {
+    archives: bool,
 }
 
 pub async fn home(
-    archives: web::Query<bool>,
+    q: web::Query<Q>,
     pool: web::Data<models::Pool>,
 ) -> Result<HttpResponse, errors::ServiceError> {
-    Ok(HttpResponse::Ok().finish())
+    Ok(HttpResponse::Ok().json(q.into_inner().archives))
 }
