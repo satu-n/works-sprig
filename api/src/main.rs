@@ -46,22 +46,32 @@ async fn main() -> std::io::Result<()> {
                         ), // TODO https
             ))
             .data(web::JsonConfig::default().limit(4096))
-            .service(
-                web::scope("/api")
-                    .service(
-                        web::resource("/invite")
-                            .route(web::post().to(handlers::invite::invite)),
+            .service(web::scope("/api")
+
+                .service(web::resource("/invite")
+                    .route(web::post().to(handlers::invite::invite)),
+                )
+                .service(web::resource("/register")
+                    .route(web::post().to(handlers::register::register)),
+                )
+                .service(web::resource("/auth")
+                    .route(web::get().to(handlers::auth::get_me))
+                    .route(web::post().to(handlers::auth::login))
+                    .route(web::delete().to(handlers::auth::logout)),
+                )
+                .service(web::scope("/app")
+
+                    .service(web::resource("/tasks")
+                        // .route(web::get().to(handlers::app::home::home))
+                        // .route(web::post().to(handlers::app::text::text))
+                        // .route(web::put().to(handlers::app::clone::clone))
+                        // .route(web::delete().to(handlers::app::exec::exec)),
                     )
-                    .service(
-                        web::resource("/register")
-                            .route(web::post().to(handlers::register::register)),
-                    )
-                    .service(
-                        web::resource("/auth")
-                            .route(web::get().to(handlers::auth::get_me))
-                            .route(web::post().to(handlers::auth::login))
-                            .route(web::delete().to(handlers::auth::logout)),
+                    .service(web::resource("/task/{tid}")
+                        // .route(web::get().to(handlers::app::focus::focus))
+                        // .route(web::put().to(handlers::app::star::star)),
                     ),
+                ),
             )
     })
     .bind(format!("0.0.0.0:3000"))?

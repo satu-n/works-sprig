@@ -14,19 +14,25 @@ import Task
 strEP : EP.EndPoint -> String
 strEP ep =
     Config.epBase
-        ++ "/"
         ++ (case ep of
                 EP.Invite ->
-                    "invite"
+                    "/invite"
 
                 EP.Register ->
-                    "register"
+                    "/register"
 
                 EP.Auth ->
-                    "auth"
+                    "/auth"
 
-                EP.App ->
-                    "app"
+                EP.App_ app ->
+                    "/app"
+                        ++ (case app of
+                                EP.Tasks ->
+                                    "/tasks"
+
+                                EP.Task tid ->
+                                    "/task" ++ "/" ++ String.fromInt tid
+                           )
            )
 
 

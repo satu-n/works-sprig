@@ -5,4 +5,9 @@ type EndPoint
     = Invite
     | Register
     | Auth
-    | App
+    | App_ App
+
+
+type App
+    = Tasks
+    | Task Int
