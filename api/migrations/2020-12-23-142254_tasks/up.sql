@@ -1,0 +1,14 @@
+CREATE TABLE tasks (
+  id SERIAL PRIMARY KEY,
+  title VARCHAR NOT NULL,
+  assign INT NOT NULL REFERENCES users ON DELETE RESTRICT,
+  is_done BOOL NOT NULL DEFAULT 'false',
+  is_starred BOOL NOT NULL DEFAULT 'false',
+  weight REAL,
+  startable TIMESTAMP WITH TIME ZONE,
+  deadline TIMESTAMP WITH TIME ZONE,
+  link VARCHAR,
+  created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
+);
+SELECT diesel_manage_updated_at('tasks');
