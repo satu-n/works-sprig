@@ -1,0 +1,28 @@
+version: "3.8"
+
+services:
+  web:
+    build: ./web
+    ports:
+      - "8080:3000"
+    volumes:
+      - ./web:/usr/local/src:cached
+  api:
+    build: ./api
+    ports:
+      - "${API_PORT}:3000"
+    volumes:
+      - ./api:/usr/local/src:cached
+      - /tmp/target
+    depends_on:
+      - db
+  db:
+    image: postgres:13-alpine
+    volumes:
+      - db:/var/lib/postgresql/data
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: $DB_PASSWORD
+
+volumes:
+  db:

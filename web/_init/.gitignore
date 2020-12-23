@@ -1,0 +1,7 @@
+bin/
+elm-stuff/
+index.html
+src/Config.elm
+README.md
+# create-elm-app build target dir
+build/
