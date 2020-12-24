@@ -1,7 +1,7 @@
 use sparkpost::transmission;
 
-use crate::models;
 use crate::errors;
+use crate::models;
 use crate::utils;
 
 lazy_static::lazy_static! { // TODO lazy_static?

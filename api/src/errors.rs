@@ -1,6 +1,6 @@
 use actix_web::{error::ResponseError, HttpResponse};
-use diesel::result::{DatabaseErrorKind, Error as DBError};
 use derive_more::Display;
+use diesel::result::{DatabaseErrorKind, Error as DBError};
 
 #[derive(Debug, Display)]
 pub enum ServiceError {

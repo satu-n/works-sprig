@@ -2,8 +2,8 @@ use actix_web::{error::BlockingError, web, HttpResponse};
 use diesel::prelude::*;
 use serde::Deserialize;
 
-use crate::models;
 use crate::errors;
+use crate::models;
 
 #[derive(Deserialize)]
 pub struct ReqInvitation {

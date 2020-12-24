@@ -2,9 +2,9 @@ use actix_web::{error::BlockingError, web, HttpResponse};
 use diesel::prelude::*;
 use serde::Deserialize;
 
-use crate::schema::users;
-use crate::models;
 use crate::errors;
+use crate::models;
+use crate::schema::users;
 use crate::utils;
 
 #[derive(Deserialize)]

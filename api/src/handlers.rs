@@ -1,5 +1,5 @@
+pub mod app;
+pub mod auth;
 pub mod invite;
 pub mod register;
-pub mod auth;
-pub mod app;
 mod email;

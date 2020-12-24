@@ -1,16 +1,16 @@
 #[macro_use]
 extern crate diesel;
 
-use actix_web::{middleware, web, App, HttpServer};
-use actix_identity::{CookieIdentityPolicy, IdentityService};
 use actix_cors::Cors;
+use actix_identity::{CookieIdentityPolicy, IdentityService};
+use actix_web::{middleware, web, App, HttpServer};
 use diesel::prelude::*;
 use diesel::r2d2::{self, ConnectionManager};
 
-mod schema;
-mod models;
-mod handlers;
 mod errors;
+mod handlers;
+mod models;
+mod schema;
 mod utils;
 
 #[actix_rt::main]
