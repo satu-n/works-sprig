@@ -13,32 +13,53 @@ pub struct ReqAuth {
     password: String,
 }
 
-#[derive(Serialize, Deserialize)]
-struct AuthedUser {
-    email: String,
+#[derive(Serialize)]
+struct ResAuth {
+    mailbox: String,
+}
+
+impl models::AuthedUser {
+    fn to_res(&self, conn: &models::Conn) -> Result<ResAuth, errors::ServiceError> {
+        use crate::schema::users::dsl::users;
+
+        let user = users.find(self.id).first::<models::User>(conn)?;
+        Ok(ResAuth { mailbox: user.mailbox() })
+    }
 }
 
 impl ReqAuth {
-    fn to_authed(&self, conn: &models::Conn) -> Result<AuthedUser, errors::ServiceError> {
+    fn to_authed(&self, conn: &models::Conn) -> Result<models::AuthedUser, errors::ServiceError> {
         use crate::schema::users::dsl::{users, email};
 
         let user = users
             .filter(email.eq(&self.email))
             .first::<models::User>(conn)?;
         if utils::verify(&user.hash, &self.password)? {
-            return Ok(AuthedUser { email: user.email })
+            return Ok(models::AuthedUser { id: user.id })
         }
         Err(errors::ServiceError::Unauthorized)
     }
 }
 
-pub async fn get_me(id: Identity) -> Result<HttpResponse, errors::ServiceError> {
-    if let Some(identity) = id.identity() {
-        if let Ok(authed_user) = serde_json::from_str::<AuthedUser>(&identity) {
-            return Ok(HttpResponse::Ok().json(&authed_user))
-        }
+pub async fn get_me(
+    user: models::AuthedUser,
+    pool: web::Data<models::Pool>,
+) -> Result<HttpResponse, errors::ServiceError> {
+
+    let res = web::block(move || {
+        let conn = pool.get().unwrap();
+        user.to_res(&conn)
+    }).await;
+
+    match res {
+        Ok(res_auth) => {
+            Ok(HttpResponse::Ok().json(&res_auth))
+        },
+        Err(err) => match err {
+            BlockingError::Error(service_error) => Err(service_error),
+            BlockingError::Canceled => Err(errors::ServiceError::InternalServerError),
+        },
     }
-    Err(errors::ServiceError::Unauthorized)
 }
 
 pub async fn login(
@@ -54,7 +75,7 @@ pub async fn login(
 
     match res {
         Ok(authed_user) => {
-            let identity = serde_json::to_string(&authed_user).unwrap();
+            let identity = authed_user.id.to_string();
             id.remember(identity);
             Ok(HttpResponse::Ok().finish())
         }

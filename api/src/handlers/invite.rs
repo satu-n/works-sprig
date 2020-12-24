@@ -45,7 +45,6 @@ pub async fn invite(
         let new_invitation = models::Invitation::from(req);
         let invitation = diesel::insert_into(invitations).values(&new_invitation).get_result(&conn)?;
         dbg!(&invitation);
-
         super::email::send(&invitation)
     }).await;
 

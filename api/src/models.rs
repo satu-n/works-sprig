@@ -1,10 +1,18 @@
+use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
 use chrono::{DateTime, NaiveTime, Utc};
-use diesel::{r2d2::ConnectionManager, PgConnection};
+use diesel::prelude::*;
+use diesel::{r2d2::ConnectionManager, PgConnection}; // TODO redundant PgConnection ?
+use futures::future::{err, ok, Ready};
+use serde::{Serialize};
 
-use super::schema::*;
+use crate::errors;
+use crate::schema::*;
+use crate::utils;
 
 pub type Pool = r2d2::Pool<ConnectionManager<PgConnection>>;
 pub type Conn = r2d2::PooledConnection<ConnectionManager<PgConnection>>;
+
+// FROM SCHEMA
 
 #[derive(Queryable, Identifiable)]
 #[primary_key(source, target)]
@@ -52,4 +60,73 @@ pub struct User {
     pub timescale: String,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+}
+
+// VARIATIONS
+
+#[derive(Identifiable)]
+#[table_name = "users"]
+pub struct AuthedUser {
+    pub id: i32,
+}
+
+impl FromRequest for AuthedUser {
+    type Config = ();
+    type Error = Error;
+    type Future = Ready<Result<AuthedUser, Error>>;
+
+    fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
+        use actix_identity::RequestIdentity;
+        if let Some(identity) = req.get_identity() {
+            if let Ok(id) = identity.parse::<i32>() {
+                return ok(AuthedUser { id: id })
+            }
+        }
+        err(errors::ServiceError::Unauthorized.into())
+    }
+}
+
+#[derive(Serialize)]
+pub struct ResTask {
+    id: i32,
+    title: String,
+    assign: Option<String>,
+    is_done: bool,
+    is_starred: bool,
+    weight: Option<f32>,
+    startable: Option<DateTime<Utc>>,
+    deadline: Option<DateTime<Utc>>,
+    link: Option<String>,
+}
+
+impl Task {
+    pub fn to_res(
+        self,
+        user: &AuthedUser,
+        conn: &Conn
+    ) -> Result<ResTask, errors::ServiceError> {
+        let assign = if self.assign == user.id { None } else { Some(
+            crate::schema::users::dsl::users
+            .find(&self.assign)
+            .first::<User>(conn)?
+            .mailbox()
+        )};
+        Ok(ResTask {
+            id: self.id,
+            title: self.title,
+            assign: assign,
+            is_done: self.is_done,
+            is_starred: self.is_starred,
+            weight: self.weight,
+            startable: self.startable,
+            deadline: self.deadline,
+            link: self.link,
+        })
+    }
+}
+
+impl User {
+    pub fn mailbox(&self) -> String {
+        utils::mailbox(&self.email)
+    }
 }
