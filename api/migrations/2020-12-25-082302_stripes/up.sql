@@ -1,4 +1,4 @@
-CREATE TABLE durations (
+CREATE TABLE stripes (
   id SERIAL PRIMARY KEY,
   open TIME NOT NULL,
   close TIME NOT NULL,

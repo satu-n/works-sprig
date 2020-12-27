@@ -6,20 +6,20 @@ table! {
 }
 
 table! {
-    durations (id) {
-        id -> Int4,
-        open -> Time,
-        close -> Time,
-        owner -> Int4,
-    }
-}
-
-table! {
     invitations (id) {
         id -> Uuid,
         email -> Varchar,
         expires_at -> Timestamptz,
         forgot_pw -> Bool,
+    }
+}
+
+table! {
+    stripes (id) {
+        id -> Int4,
+        open -> Time,
+        close -> Time,
+        owner -> Int4,
     }
 }
 
@@ -30,9 +30,9 @@ table! {
         assign -> Int4,
         is_done -> Bool,
         is_starred -> Bool,
-        weight -> Nullable<Float4>,
         startable -> Nullable<Timestamptz>,
         deadline -> Nullable<Timestamptz>,
+        weight -> Nullable<Float4>,
         link -> Nullable<Varchar>,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
@@ -50,13 +50,13 @@ table! {
     }
 }
 
-joinable!(durations -> users (owner));
+joinable!(stripes -> users (owner));
 joinable!(tasks -> users (assign));
 
 allow_tables_to_appear_in_same_query!(
     arrows,
-    durations,
     invitations,
+    stripes,
     tasks,
     users,
 );

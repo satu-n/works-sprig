@@ -1,32 +1,27 @@
 use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
 use chrono::{DateTime, NaiveTime, Utc};
-use diesel::prelude::*;
+// use diesel::prelude::*;
 use diesel::{r2d2::ConnectionManager, PgConnection}; // TODO redundant PgConnection ?
+use diesel::sql_types::{Nullable, Float};
+use diesel::expression::{bound, IntoSql};
 use futures::future::{err, ok, Ready};
 use serde::{Serialize};
+use std::collections::HashMap;
 
 use crate::errors;
 use crate::schema::*;
-use crate::utils;
+// use crate::utils;
 
 pub type Pool = r2d2::Pool<ConnectionManager<PgConnection>>;
 pub type Conn = r2d2::PooledConnection<ConnectionManager<PgConnection>>;
 
 // FROM SCHEMA
 
-#[derive(Queryable, Identifiable)]
+#[derive(Queryable, Identifiable, Clone)]
 #[primary_key(source, target)]
 pub struct Arrow {
     pub source: i32,
     pub target: i32,
-}
-
-#[derive(Queryable, Identifiable)]
-pub struct Duration {
-    pub id: i32,
-    pub open: NaiveTime,
-    pub close: NaiveTime,
-    pub owner: i32,
 }
 
 #[derive(Queryable, Identifiable, Insertable, Debug)]
@@ -38,15 +33,23 @@ pub struct Invitation {
 }
 
 #[derive(Queryable, Identifiable)]
+pub struct Stripe {
+    pub id: i32,
+    pub open: NaiveTime,
+    pub close: NaiveTime,
+    pub owner: i32,
+}
+
+#[derive(Queryable, Identifiable)]
 pub struct Task {
     pub id: i32,
     pub title: String,
     pub assign: i32,
     pub is_done: bool,
     pub is_starred: bool,
-    pub weight: Option<f32>,
     pub startable: Option<DateTime<Utc>>,
     pub deadline: Option<DateTime<Utc>>,
+    pub weight: Option<f32>,
     pub link: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -86,47 +89,69 @@ impl FromRequest for AuthedUser {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Queryable, Serialize)]
 pub struct ResTask {
-    id: i32,
-    title: String,
-    assign: Option<String>,
-    is_done: bool,
-    is_starred: bool,
-    weight: Option<f32>,
-    startable: Option<DateTime<Utc>>,
-    deadline: Option<DateTime<Utc>>,
-    link: Option<String>,
+    pub id: i32,
+    pub title: String,
+    pub assign: String,
+    pub is_done: bool,
+    pub is_starred: bool,
+    pub startable: Option<DateTime<Utc>>,
+    pub deadline: Option<DateTime<Utc>>,
+    pub priority: Option<f32>,
+    pub weight: Option<f32>,
+    pub link: Option<String>,
 }
 
-impl Task {
-    pub fn to_res(
-        self,
-        user: &AuthedUser,
-        conn: &Conn
-    ) -> Result<ResTask, errors::ServiceError> {
-        let assign = if self.assign == user.id { None } else { Some(
-            crate::schema::users::dsl::users
-            .find(&self.assign)
-            .first::<User>(conn)?
-            .mailbox()
-        )};
-        Ok(ResTask {
-            id: self.id,
-            title: self.title,
-            assign: assign,
-            is_done: self.is_done,
-            is_starred: self.is_starred,
-            weight: self.weight,
-            startable: self.startable,
-            deadline: self.deadline,
-            link: self.link,
-        })
+pub trait Selectable {
+    type Columns;
+    fn columns() -> Self::Columns;
+}
+
+impl Selectable for ResTask {
+    type Columns = (
+        tasks::id,
+        tasks::title,
+        users::email,
+        tasks::is_done,
+        tasks::is_starred,
+        tasks::startable,
+        tasks::deadline,
+        bound::Bound<Nullable<Float>, Option<f32>>,
+        tasks::weight,
+        tasks::link,
+    );
+    fn columns() -> Self::Columns {(
+        tasks::id,
+        tasks::title,
+        users::email,
+        tasks::is_done,
+        tasks::is_starred,
+        tasks::startable,
+        tasks::deadline,
+        None::<f32>.into_sql::<Nullable<Float>>(),
+        tasks::weight,
+        tasks::link,
+    )}
+}
+
+pub struct Arrows {
+    pub arrows: Vec<Arrow>,
+}
+
+impl From<Vec<Arrow>> for Arrows {
+    fn from(arrows: Vec<Arrow>) -> Self {
+        Self { arrows: arrows }
     }
 }
 
-impl User {
-    pub fn mailbox(&self) -> String {
-        utils::mailbox(&self.email)
+impl Arrows {
+    pub fn to_map(&self) -> HashMap<i32, Vec<i32>> {
+        let mut map: HashMap<i32, Vec<i32>> = HashMap::new();
+        for arw in self.arrows.to_owned() {
+            let targets = map.entry(arw.source).or_default();
+            targets.push(arw.target);
+        }
+        map
     }
 }
