@@ -15,7 +15,7 @@ pub struct ReqAuth {
 
 #[derive(Serialize)]
 struct ResAuth {
-    mailbox: String,
+    email: String,
 }
 
 impl models::AuthedUser {
@@ -23,7 +23,7 @@ impl models::AuthedUser {
         use crate::schema::users::dsl::users;
 
         let user = users.find(self.id).first::<models::User>(conn)?;
-        Ok(ResAuth { mailbox: user.mailbox() })
+        Ok(ResAuth { email: user.email })
     }
 }
 

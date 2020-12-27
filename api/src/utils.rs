@@ -29,17 +29,3 @@ pub fn verify(hash: &str, password: &str) -> Result<bool, errors::ServiceError> 
         errors::ServiceError::InternalServerError
     })
 }
-
-pub fn mailbox(email: &str) -> String {
-    email.split("@").next().unwrap().to_string()
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn t_mailbox() {
-        assert_eq!(mailbox("name@domain.com"), "name".to_string())
-    }
-}
