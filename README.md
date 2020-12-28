@@ -36,55 +36,34 @@ See input area [placeholder]().
 
 ### Shortcuts
 
-#### Input
 
-* __/__ focus input area
-* __Ctrl ↓__ maximize input area
-* __Ctrl Enter__ submit
-* __Ctrl ↑__ minimize input area
-* __Esc__ blur input area
-
-#### Cursor
-
-* <img src="web/images/cmd_jk_normal.png" width="20px">
-  __JK__ down & up cursor
-* <img src="web/images/cmd_x_normal.png" width="20px">
-  __X__ select task at cursor
-* <img src="web/images/cmd_s_normal.png" width="20px">
-  __S__ Star task at cursor
-* <img src="web/images/cmd_f_normal.png" width="20px">
-  __F__ Focus task at cursor: view directly related tasks
-* <img src="web/images/cmd_u_normal.png" width="20px">
-  __U__ open URL link of task at cursor
-    <!-- - for Slack permalinks, go to the native app message -->
-
-#### Selection
-
-* <img src="web/images/cmd_i_normal.png" width="20px">
-  __I__ Invert selection
-* <img src="web/images/cmd_e_normal.png" width="20px">
-  __E__ Execute and archive selected tasks
-* <img src="web/images/cmd_e_normal.png" width="20px">
-  __Shift E__ revert selected tasks
-* <img src="web/images/cmd_c_normal.png" width="20px">
-  __C__ Clone selected tasks to input area
-* <img src="web/images/cmd_p_normal.png" width="20px">
-  __P__ show critical Path between 2 selected tasks 
-
-#### View
-
-* <img src="web/images/cmd_5_normal.png" width="20px">
-  __1-5__ time scale
-* <img src="web/images/cmd_wo_normal.png" width="20px">
-  __WO__ time shift
-* <img src="web/images/cmd_a_normal.png" width="20px">
-  __A__ Archives
-* <img src="web/images/cmd_r_normal.png" width="20px">
-  __R__ Roots, no successor
-* <img src="web/images/cmd_l_normal.png" width="20px">
-  __L__ Leaves, no predecessor
-* <img src="web/images/cmd_h_normal.png" width="20px">
-  __H__ Home
+| Icon | Shortcut | Operation |
+| :---: | ---: |---|
+|  |  | <div style="text-align: center;">__INPUT__</div> |
+|  | `/` | focus input area |
+|  | `Ctrl` + `↓` | maximize input area |
+|  | `Ctrl` + `Enter` | submit |
+|  | `Ctrl` + `↑` | minimize input area |
+|  | `Esc` | blur input area |
+|  |  | <div style="text-align: center;">__CURSOR__</div> |
+| <img src="web/images/cmd_jk_normal.png" width="24px" align="center"> | `J` `K` | down & up cursor |
+| <img src="web/images/cmd_x_normal.png" width="24px" align="center"> | `X` | select task at cursor |
+| <img src="web/images/cmd_s_normal.png" width="24px" align="center"> | `S` | Star task at cursor |
+| <img src="web/images/cmd_f_normal.png" width="24px" align="center"> | `F` | Focus task at cursor: view directly related tasks |
+| <img src="web/images/cmd_u_normal.png" width="24px" align="center"> | `U` | open URL link of task at cursor |
+|  |  | <div style="text-align: center;">__SELECTION__</div> |
+| <img src="web/images/cmd_i_normal.png" width="24px" align="center"> | `I` | Invert selection |
+| <img src="web/images/cmd_e_normal.png" width="24px" align="center"> | `E` | Execute and archive selected tasks |
+| <img src="web/images/cmd_e_normal.png" width="24px" align="center"> | `Shift` + `E` | revert selected tasks |
+| <img src="web/images/cmd_c_normal.png" width="24px" align="center"> | `C` | Clone selected tasks to input area |
+| <img src="web/images/cmd_p_normal.png" width="24px" align="center"> | `P` | show critical Path between 2 selected tasks  |
+|  |  | <div style="text-align: center;">__VIEW__</div> |
+| <img src="web/images/cmd_5_normal.png" width="24px" align="center"> | `1` .. `5` | time scale |
+| <img src="web/images/cmd_wo_normal.png" width="24px" align="center"> | `W` `O` | time shift |
+| <img src="web/images/cmd_a_normal.png" width="24px" align="center"> | `A` | Archives |
+| <img src="web/images/cmd_r_normal.png" width="24px" align="center"> | `R` | Roots, no successor |
+| <img src="web/images/cmd_l_normal.png" width="24px" align="center"> | `L` | Leaves, no predecessor |
+| <img src="web/images/cmd_h_normal.png" width="24px" align="center"> | `H` | Home |
 
 ### Logout
 
