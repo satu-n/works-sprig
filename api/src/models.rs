@@ -17,7 +17,7 @@ pub type Conn = r2d2::PooledConnection<ConnectionManager<PgConnection>>;
 
 // FROM SCHEMA
 
-#[derive(Queryable, Identifiable, Clone)]
+#[derive(Queryable, Identifiable)]
 #[primary_key(source, target)]
 pub struct Arrow {
     pub source: i32,
@@ -148,7 +148,7 @@ impl From<Vec<Arrow>> for Arrows {
 impl Arrows {
     pub fn to_map(&self) -> HashMap<i32, Vec<i32>> {
         let mut map: HashMap<i32, Vec<i32>> = HashMap::new();
-        for arw in self.arrows.to_owned() {
+        for arw in self.arrows.iter() {
             let targets = map.entry(arw.source).or_default();
             targets.push(arw.target);
         }

@@ -8,14 +8,14 @@ use std::collections::HashMap;
 use crate::errors;
 use crate::models::{self, Selectable};
 
-#[derive(Serialize)]
-struct ResHome {
-    tasks: Vec<models::ResTask>,
-}
-
 #[derive(Deserialize)]
 pub struct Q {
     archives: bool,
+}
+
+#[derive(Serialize)]
+struct ResHome {
+    tasks: Vec<models::ResTask>,
 }
 
 pub async fn home(
@@ -25,38 +25,8 @@ pub async fn home(
 ) -> Result<HttpResponse, errors::ServiceError> {
 
     let res = web::block(move || {
-        use crate::schema::arrows::dsl::{arrows, source, target};
-        use crate::schema::stripes::dsl::{stripes, owner};
-        use crate::schema::tasks::dsl::{tasks, assign, is_done, is_starred, updated_at};
-        use crate::schema::users::dsl::{users};
-        
         let conn = pool.get().unwrap();
-        let is_archives = q.into_inner().archives;
-        let _intermediate = tasks
-            .filter(assign.eq(&user.id))
-            .filter(is_done.eq(&is_archives))
-            .inner_join(users)
-            .select(models::ResTask::columns())
-            .order(updated_at.desc());
-        let res_tasks = if is_archives {
-            _intermediate
-            .order(is_starred.desc())
-            .limit(100)
-            .load::<models::ResTask>(&conn)?
-        } else {
-            let _res_tasks = _intermediate.load::<models::ResTask>(&conn)?;
-            let ids = _res_tasks.iter().map(|t| t.id).collect::<Vec<i32>>();
-            let _arrows = arrows
-                .filter(source.eq_any(&ids))
-                .filter(target.eq_any(&ids))
-                .load::<models::Arrow>(&conn)?;
-            let _stripes = stripes
-                .filter(owner.eq(&user.id))
-                .load::<models::Stripe>(&conn)?;
-            let mut sorter = Sorter::new(_res_tasks, _arrows, _stripes);
-            sorter.exec();
-            sorter.tasks
-        };
+        let res_tasks = q.into_inner().query(&user, &conn)?;
         Ok(ResHome { tasks: res_tasks })
     }).await;
 
@@ -72,27 +42,64 @@ pub async fn home(
     }
 }
 
+impl Q {
+    pub fn query(&self,
+        user: &models::AuthedUser,
+        conn: &models::Conn,
+    ) -> Result<Vec<models::ResTask>, errors::ServiceError> {
+    
+        use crate::schema::arrows::dsl::{arrows, source, target};
+        use crate::schema::stripes::dsl::{stripes, owner};
+        use crate::schema::tasks::dsl::{tasks, assign, is_done, is_starred, updated_at};
+        use crate::schema::users::dsl::{users};
+    
+        let _intermediate = tasks
+            .filter(assign.eq(&user.id))
+            .filter(is_done.eq(&self.archives))
+            .inner_join(users)
+            .select(models::ResTask::columns())
+            .order(updated_at.desc());
+        let res_tasks = if self.archives {
+            _intermediate
+            .order(is_starred.desc())
+            .limit(100)
+            .load::<models::ResTask>(conn)?
+        } else {
+            let _res_tasks = _intermediate.load::<models::ResTask>(conn)?;
+            let ids = _res_tasks.iter().map(|t| t.id).collect::<Vec<i32>>();
+            let _arrows = arrows
+                .filter(source.eq_any(&ids))
+                .filter(target.eq_any(&ids))
+                .load::<models::Arrow>(conn)?;
+            let _stripes = stripes
+                .filter(owner.eq(&user.id))
+                .load::<models::Stripe>(conn)?;
+            let mut sorter = Sorter::new(_res_tasks, _stripes);
+            sorter.exec(_arrows);
+            sorter.tasks
+        };
+        Ok(res_tasks)
+    }
+}
+
 struct Sorter {
     now: DateTime<Utc>,
     tasks: Vec<models::ResTask>,
-    arrows: Vec<models::Arrow>,
     stripes: Vec<models::Stripe>,
 }
 
 impl Sorter {
     fn new(
         tasks: Vec<models::ResTask>,
-        arrows: Vec<models::Arrow>,
         stripes: Vec<models::Stripe>,
     ) -> Self { Self {
             now: Utc::now(),
             tasks: tasks,
-            arrows: arrows,
             stripes: stripes,
         }
     }
-    fn exec(&mut self) {
-        let mut sub = self.to_sub();
+    fn exec(&mut self, arrows: Vec<models::Arrow>) {
+        let mut sub = self.to_sub(arrows);
         sub.exec();
         // set priority
         for t in &mut self.tasks {
@@ -103,7 +110,7 @@ impl Sorter {
         self.tasks.sort_by(|a, b| sub.map[&b.id].rank.cmp(&sub.map[&a.id].rank));
         self.tasks.sort_by(|a, b| b.is_starred.cmp(&a.is_starred));
     }
-    fn to_sub(&self) -> SubSorter {
+    fn to_sub(&self, arrows: Vec<models::Arrow>) -> SubSorter {
         let mut map = HashMap::new();
         for t in &self.tasks {
             map.insert(t.id, SubTask {
@@ -117,7 +124,7 @@ impl Sorter {
         SubSorter {
             cursor: 0,
             entries: map.keys().cloned().collect::<Vec<i32>>(),
-            arrows: self.arrows.clone().into(),
+            arrows: arrows.into(),
             map: map,
         }
     }
