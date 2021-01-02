@@ -23,8 +23,10 @@ pub fn hash(password: &str) -> Result<String, errors::ServiceError> {
 }
 
 pub fn verify(hash: &str, password: &str) -> Result<bool, errors::ServiceError> {
-    argon2::verify_encoded(hash, password.as_bytes())
-    .map_err(|err| {
+    argon2::verify_encoded(
+        hash,
+        password.as_bytes(),
+    ).map_err(|err| {
         dbg!(err);
         errors::ServiceError::InternalServerError
     })

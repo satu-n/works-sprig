@@ -1,23 +1,24 @@
-use actix_web::{error::BlockingError, web, HttpResponse};
+use actix_web::{web, HttpResponse};
 use diesel::prelude::*;
 use serde::{Serialize, Deserialize};
 
 use crate::errors;
 use crate::models;
-use crate::utils;
 
 #[derive(Deserialize)]
-pub struct ReqClone {
+pub struct ReqBody {
     tasks: Vec<i32>,
 }
 
 #[derive(Serialize)]
-pub struct ResClone {
+pub struct ResBody {
     text: String,
+    msg: String,
 }
 
 pub async fn clone(
-    req: web::Json<ReqClone>,
+    req: web::Json<ReqBody>,
+    user: models::AuthedUser,
     pool: web::Data<models::Pool>,
 ) -> Result<HttpResponse, errors::ServiceError> {
     Ok(HttpResponse::Ok().finish())
