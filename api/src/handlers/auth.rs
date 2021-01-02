@@ -1,5 +1,6 @@
 use actix_identity::Identity;
-use actix_web::{error::BlockingError, web, HttpResponse};
+use actix_web::{web, HttpResponse};
+use chrono_tz::Tz;
 use diesel::prelude::*;
 use serde::{Serialize, Deserialize};
 
@@ -8,37 +9,31 @@ use crate::models;
 use crate::utils;
 
 #[derive(Deserialize)]
-pub struct ReqAuth {
+pub struct ReqBody {
     email: String,
     password: String,
+    tz: Tz,
 }
 
 #[derive(Serialize)]
-struct ResAuth {
-    email: String,
+struct ResBody {
+    name: String,
 }
 
-impl models::AuthedUser {
-    fn to_res(&self, conn: &models::Conn) -> Result<ResAuth, errors::ServiceError> {
-        use crate::schema::users::dsl::users;
+pub async fn login(
+    req: web::Json<ReqBody>,
+    id: Identity,
+    pool: web::Data<models::Pool>,
+) -> Result<HttpResponse, errors::ServiceError> {
 
-        let user = users.find(self.id).first::<models::User>(conn)?;
-        Ok(ResAuth { email: user.email })
-    }
-}
+    let authed_user = web::block(move || {
+        let conn = pool.get().unwrap();
+        req.into_inner().to_authed(&conn)
+    }).await?;
 
-impl ReqAuth {
-    fn to_authed(&self, conn: &models::Conn) -> Result<models::AuthedUser, errors::ServiceError> {
-        use crate::schema::users::dsl::{users, email};
-
-        let user = users
-            .filter(email.eq(&self.email))
-            .first::<models::User>(conn)?;
-        if utils::verify(&user.hash, &self.password)? {
-            return Ok(models::AuthedUser { id: user.id })
-        }
-        Err(errors::ServiceError::Unauthorized)
-    }
+    let identity = serde_json::to_string(&authed_user).unwrap();
+    id.remember(identity);
+    Ok(HttpResponse::Ok().finish())
 }
 
 pub async fn get_me(
@@ -46,47 +41,44 @@ pub async fn get_me(
     pool: web::Data<models::Pool>,
 ) -> Result<HttpResponse, errors::ServiceError> {
 
-    let res = web::block(move || {
+    let res_body = web::block(move || {
         let conn = pool.get().unwrap();
         user.to_res(&conn)
-    }).await;
+    }).await?;
 
-    match res {
-        Ok(res_auth) => {
-            Ok(HttpResponse::Ok().json(&res_auth))
-        },
-        Err(err) => match err {
-            BlockingError::Error(service_error) => Err(service_error),
-            BlockingError::Canceled => Err(errors::ServiceError::InternalServerError),
-        },
-    }
-}
-
-pub async fn login(
-    req_auth: web::Json<ReqAuth>,
-    id: Identity,
-    pool: web::Data<models::Pool>,
-) -> Result<HttpResponse, errors::ServiceError> {
-
-    let res = web::block(move || {
-        let conn = pool.get().unwrap();
-        req_auth.into_inner().to_authed(&conn)
-    }).await;
-
-    match res {
-        Ok(authed_user) => {
-            let identity = authed_user.id.to_string();
-            id.remember(identity);
-            Ok(HttpResponse::Ok().finish())
-        }
-        Err(err) => match err {
-            BlockingError::Error(service_error) => Err(service_error),
-            BlockingError::Canceled => Err(errors::ServiceError::InternalServerError),
-        },
-    }
+    Ok(HttpResponse::Ok().json(&res_body))
 }
 
 pub async fn logout(id: Identity) -> HttpResponse {
     id.forget();
     HttpResponse::Ok().finish()
+}
+
+impl ReqBody {
+    fn to_authed(&self, conn: &models::Conn
+    ) -> Result<models::AuthedUser, errors::ServiceError> {
+        use crate::schema::users::dsl::{users, email};
+
+        if let Ok(user) = users
+        .filter(email.eq(&self.email))
+        .first::<models::User>(conn) {
+            if utils::verify(&user.hash, &self.password)? {
+                return Ok(models::AuthedUser { 
+                    id: user.id,
+                    tz: self.tz,
+                })
+            }
+        }
+        Err(errors::ServiceError::Unauthorized)
+    }
+}
+
+impl models::AuthedUser {
+    fn to_res(&self, conn: &models::Conn
+    ) -> Result<ResBody, errors::ServiceError> {
+        use crate::schema::users::dsl::users;
+
+        let user = users.find(self.id).first::<models::User>(conn)?;
+        Ok(ResBody { name: user.name })
+    }
 }

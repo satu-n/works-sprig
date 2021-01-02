@@ -6,6 +6,8 @@ import Html.Attributes exposing (class)
 import Html.Events exposing (onClick)
 import Json.Encode as Encode
 import Page as P
+import Task
+import Time
 import Util as U
 
 
@@ -23,12 +25,15 @@ type alias Mdl =
 type alias Req =
     { email : String
     , password : String
+    , tz : String
     }
 
 
 init : ( Mdl, Cmd Msg )
 init =
-    ( { req = { email = "", password = "" }, msg = "", forgot_pw = False }, Cmd.none )
+    ( { req = { email = "", password = "", tz = "" }, msg = "", forgot_pw = False }
+    , Task.perform SetTz Time.getZoneName
+    )
 
 
 
@@ -39,6 +44,7 @@ type Msg
     = Goto P.Page
     | FromU FromU
     | FromS FromS
+    | SetTz Time.ZoneName
 
 
 type FromU
@@ -94,6 +100,24 @@ update msg mdl =
 
                 LoggedIn (Ok _) ->
                     ( mdl, U.cmd Goto P.LP )
+
+        SetTz zoneName ->
+            let
+                req =
+                    mdl.req
+
+                newReq =
+                    { req
+                        | tz =
+                            case zoneName of
+                                Time.Name name ->
+                                    name
+
+                                _ ->
+                                    "UTC"
+                    }
+            in
+            ( { mdl | req = newReq }, Cmd.none )
 
         _ ->
             ( mdl, Cmd.none )
