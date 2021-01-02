@@ -21,12 +21,12 @@ type alias Mdl =
 
 
 type alias User =
-    { email : String }
+    { name : String }
 
 
 init : ( Mdl, Cmd Msg )
 init =
-    ( { user = { email = "" }, msg = "" }, getMe )
+    ( { user = { name = "" }, msg = "" }, getMe )
 
 
 getMe : Cmd Msg
@@ -37,7 +37,7 @@ getMe =
 decUser : Decoder User
 decUser =
     Decode.succeed User
-        |> required "email" string
+        |> required "name" string
 
 
 

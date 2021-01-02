@@ -19,7 +19,7 @@ type alias Mdl =
 
 
 type alias User =
-    { email : String }
+    { name : String }
 
 
 init : User -> ( Mdl, Cmd Msg )
@@ -79,7 +79,7 @@ view mdl =
     Html.map FromU <|
         div []
             [ div [ class "title" ] [ text "App" ]
-            , div [] [ text mdl.user.email ]
+            , div [] [ text mdl.user.name ]
             , div [] [ text mdl.msg ]
             , div [] [ button [ onClick Logout ] [ text "Logout" ] ]
             ]
