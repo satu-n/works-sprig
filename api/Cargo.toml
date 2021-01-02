@@ -16,6 +16,7 @@ actix-rt = "1.1"
 actix-service = "1.0"
 actix-web = "3.3"
 chrono = { version = "0.4", features = ["serde"] }
+chrono-tz = { version = "0.5", features = ["serde"] }
 combine = "4.5"
 derive_more = "0.99"
 diesel = { version = "1.4", features = ["postgres", "uuidv07", "r2d2", "chrono"] }
@@ -24,6 +25,7 @@ env_logger = "0.8"
 futures = "0.3"
 lazy_static = "1.4"
 r2d2 = "0.8"
+regex = "1.4"
 rust-argon2 = "0.8"
 serde = "1.0"
 serde_derive = "1.0"

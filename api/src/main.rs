@@ -81,7 +81,7 @@ fn auth_protected(cfg: &mut web::ServiceConfig) {
     cfg
     .service(web::resource("/tasks")
         .route(web::get().to(handlers::app::home::home))
-        // .route(web::post().to(handlers::app::text::text))
+        .route(web::post().to(handlers::app::text::text))
         // .route(web::put().to(handlers::app::clone::clone))
         // .route(web::delete().to(handlers::app::exec::exec))
     )

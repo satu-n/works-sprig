@@ -15,6 +15,14 @@ table! {
 }
 
 table! {
+    permissions (subject, object) {
+        subject -> Int4,
+        object -> Int4,
+        edit -> Bool,
+    }
+}
+
+table! {
     stripes (id) {
         id -> Int4,
         open -> Time,
@@ -44,6 +52,7 @@ table! {
         id -> Int4,
         email -> Varchar,
         hash -> Varchar,
+        name -> Varchar,
         timescale -> Varchar,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
@@ -56,6 +65,7 @@ joinable!(tasks -> users (assign));
 allow_tables_to_appear_in_same_query!(
     arrows,
     invitations,
+    permissions,
     stripes,
     tasks,
     users,
