@@ -10,13 +10,13 @@ use crate::models::{self, Selectable};
 
 #[derive(Deserialize)]
 pub struct Q {
-    pub archives: bool,
+    pub option: Option<String>,
 }
 
 #[derive(Serialize)]
 struct ResBody {
     tasks: Vec<models::ResTask>,
-    msg: String,
+    config: Config,
 }
 
 pub async fn home(
@@ -27,18 +27,38 @@ pub async fn home(
 
     let res_body = web::block(move || {
         let conn = pool.get().unwrap();
-        let res_tasks = q.into_inner().query(&user, &conn)?;
-        let msg = format!("{} tasks here.", res_tasks.len());
+        let config = q.into_inner().config();
+        let res_tasks = config.query(&user, &conn)?;
+
         Ok(ResBody {
             tasks: res_tasks,
-            msg: msg,
+            config: config,
         })
     }).await?;
 
     Ok(HttpResponse::Ok().json(res_body))
 }
 
+#[derive(Serialize)]
+pub enum Config {
+    Archives,
+    Roots,
+    Leaves,
+    Home,
+}
+
 impl Q {
+    fn config(&self) -> Config {
+        match self.option.as_deref() {
+            Some("archives") => Config::Archives,
+            Some("roots")    => Config::Roots,
+            Some("leaves")   => Config::Leaves,
+            _                => Config::Home,
+        }
+    }
+}
+
+impl Config {
     pub fn query(&self,
         user: &models::AuthedUser,
         conn: &models::Conn,
@@ -46,13 +66,15 @@ impl Q {
         use crate::schema::stripes::dsl::{stripes, owner};
         use crate::schema::tasks::dsl::{tasks, assign, is_done, is_starred, updated_at};
         use crate::schema::users::dsl::users;
-    
+
+        let archives = if let Self::Archives = self { true } else { false };
+
         let _intermediate = tasks
             .filter(assign.eq(&user.id))
-            .filter(is_done.eq(&self.archives))
+            .filter(is_done.eq(&archives))
             .inner_join(users)
             .select(models::ResTask::columns());
-        let res_tasks = if self.archives {
+        let res_tasks = if archives {
             _intermediate
             .order((is_starred.desc(), updated_at.desc()))
             .limit(100)
@@ -61,15 +83,32 @@ impl Q {
             let _res_tasks = _intermediate
                 .order(updated_at.desc())
                 .load::<models::ResTask>(conn)?;
+
             let arrows = models::Arrows::among(&_res_tasks, conn)?;
-            let _stripes = stripes
+            let mut sorter = Sorter::new(_res_tasks,
+                stripes
                 .filter(owner.eq(&user.id))
-                .load::<models::Stripe>(conn)?;
-            let mut sorter = Sorter::new(_res_tasks, _stripes);
-            sorter.exec(arrows);
+                .load::<models::Stripe>(conn)?
+            );
+            sorter.exec(arrows.clone());
+            self.filter(&mut sorter.tasks, &arrows);
             sorter.tasks
         };
         Ok(res_tasks)
+    }
+    fn filter(&self,
+        tasks: &mut Vec<models::ResTask>,
+        arrows: &models::Arrows,
+    ) {
+        match self {
+            Self::Leaves => {
+                tasks.retain(|t| models::Tid::from(t.id).is(models::LR::Leaf, arrows))
+            },
+            Self::Roots => {
+                tasks.retain(|t| models::Tid::from(t.id).is(models::LR::Root, arrows))
+            },
+            _ => (),
+        }
     }
 }
 
