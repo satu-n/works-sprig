@@ -18,7 +18,7 @@ pub type Conn = r2d2::PooledConnection<ConnectionManager<PgConnection>>;
 
 // FROM SCHEMA
 
-#[derive(Queryable, Identifiable, Insertable)]
+#[derive(Queryable, Identifiable, Insertable, Clone)]
 #[primary_key(source, target)]
 pub struct Arrow {
     pub source: i32,
@@ -146,6 +146,7 @@ impl Selectable for ResTask {
     )}
 }
 
+#[derive(Clone)]
 pub struct Arrows {
     pub arrows: Vec<Arrow>,
 }
@@ -286,6 +287,9 @@ impl Arrows {
         ids
     }
     pub fn has_cycle(&self) -> bool {
+        if self.list(LR::Leaf).is_empty() || self.list(LR::Root).is_empty() {
+            return true
+        }
         self.list(LR::Leaf).iter().any(|leaf| Tid::from(*leaf).paths_to(LR::Root, &self).is_empty())
     }
 }

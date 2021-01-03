@@ -1,5 +1,6 @@
 use actix_web::{web, HttpResponse};
 use chrono::{DateTime, NaiveDateTime, Utc};
+use derive_more::Display;
 use diesel::prelude::*;
 use regex::Regex;
 use serde::{Serialize, Deserialize};
@@ -7,7 +8,8 @@ use std::cmp::max;
 
 use crate::errors;
 use crate::models::{self, Selectable};
-use crate::schema::tasks;
+use crate::schema::{tasks, users};
+use crate::utils;
 use super::home;
 
 #[derive(Deserialize)]
@@ -16,9 +18,12 @@ pub struct ReqBody {
 }
 
 #[derive(Serialize)]
-pub struct ResBody {
-    tasks: Vec<models::ResTask>,
-    msg: String, // for Ok only. for Err, use HttpResponse::BadRequest
+pub enum ResBody {
+    Command(ResCommand),
+    Tasks {
+        tasks: Vec<models::ResTask>,
+        info: TasksInfo,
+    },
 }
 
 pub async fn text(
@@ -27,20 +32,26 @@ pub async fn text(
     pool: web::Data<models::Pool>,
 ) -> Result<HttpResponse, errors::ServiceError> {
 
-    let text = req.into_inner().text.parse::<Text>()?;
+    let req = req.into_inner().text.parse::<Req>()?;
 
     let res_body = web::block(move || {
         let conn = pool.get().unwrap();
-        match text {
-            Text::Command(cmd) => match cmd {
-                Command::Search(condition) => condition.extract(&user, &conn),
+        match req {
+            Req::Command(cmd) => {
+                let res_command = match cmd {
+                    ReqCommand::Info              => ResCommand::info(&user, &conn)?,
+                    ReqCommand::Modify(account)   => account.modify(&user, &conn)?,
+                    ReqCommand::Search(condition) => condition.extract(&user, &conn)?,
+                    ReqCommand::Coffee            => ResCommand::Teapot,
+                };
+                Ok(ResBody::Command(res_command))
             },
-            Text::ReqTasks(tasks) => {
-                let msg = tasks.dissemble(&user).accept(&user, &conn)?.upsert(&conn)?;
-                let res_tasks = home::Q { archives: false }.query(&user, &conn)?;
-                Ok(ResBody {
+            Req::Tasks(tasks) => {
+                let info = tasks.read(&user).accept(&user, &conn)?.upsert(&conn)?;
+                let res_tasks =  home::Config::Home.query(&user, &conn)?;
+                Ok(ResBody::Tasks {
                     tasks: res_tasks,
-                    msg: msg,
+                    info: info,
                 })
             }
         }
@@ -49,13 +60,78 @@ pub async fn text(
     Ok(HttpResponse::Ok().json(res_body))
 }
 
-pub enum Text {
-    Command(Command),
-    ReqTasks(ReqTasks),
+pub enum Req {
+    Command(ReqCommand),
+    Tasks(ReqTasks),
 }
 
-pub enum Command {
+pub enum ReqCommand {
+    Info,
+    Modify(ReqAccount),
     Search(Condition),
+    Coffee,
+}
+
+pub enum ReqAccount {
+    Email(String),
+    Password(PasswordSet),
+    Name(String),
+    Timescale(Timescale),
+}
+
+pub struct PasswordSet {
+    current: String,
+    new: String,
+    confirmation: String,
+}
+
+#[derive(Serialize)]
+enum ResCommand {
+    Info {
+        since: DateTime<Utc>,
+        executed: i32,
+    },
+    Modify(ResAccount),
+    Search {
+        tasks: Vec<models::ResTask>,
+    },
+    Teapot,
+}
+
+#[derive(Serialize)]
+enum ResAccount {
+    Email(String),
+    Password,
+    Name(String),
+    Timescale(Timescale),
+}
+
+#[derive(Display, Serialize)]
+enum Timescale {
+    #[display(fmt = "Y")]
+    Year,
+    #[display(fmt = "Q")]
+    Quarter,
+    #[display(fmt = "M")]
+    Month,
+    #[display(fmt = "W")]
+    Week,
+    #[display(fmt = "D")]
+    Day,
+    #[display(fmt = "6h")]
+    Hours6,
+    #[display(fmt = "h")]
+    Hour,
+    #[display(fmt = "15m")]
+    Minutes15,
+    #[display(fmt = "m")]
+    Minute,
+}
+
+#[derive(Serialize)]
+struct TasksInfo {
+    created: i32,
+    updated: i32,
 }
 
 pub struct Condition {
@@ -158,11 +234,122 @@ struct AltTask {
     link: Option<Option<String>>,
 }
 
+impl ResCommand {
+    fn info(
+        user: &models::AuthedUser,
+        conn: &models::Conn,
+    ) -> Result<Self, errors::ServiceError> {
+        use crate::schema::tasks::dsl::{tasks, assign, is_done};
+        use crate::schema::users::dsl::{users, created_at};
+
+        let since = users.find(user.id).select(created_at).first::<DateTime<Utc>>(conn)?;
+        let executed = tasks
+        .filter(assign.eq(&user.id))
+        .filter(is_done)
+        .count().get_result::<i64>(conn)? as i32;
+
+        Ok(Self::Info {
+            since: since,
+            executed: executed,
+        })
+    }
+}
+
+#[derive(AsChangeset)]
+#[table_name = "users"]
+struct AltUser {
+    email: Option<String>,
+    hash: Option<String>,
+    name: Option<String>,
+    timescale: Option<String>,
+}
+
+impl ReqAccount {
+    fn modify(self,
+        user: &models::AuthedUser,
+        conn: &models::Conn,
+    ) -> Result<ResCommand, errors::ServiceError> {
+        use diesel::dsl::{select, exists};
+        use crate::schema::users::dsl::{users, email, name};
+
+        let mut alt_user = AltUser {
+            email: None,
+            hash: None,
+            name: None,
+            timescale: None,
+        };
+        let res_account = match self {
+            Self::Email(s) => {
+                if select(exists(users.filter(email.eq(&s)))).get_result(conn)? {
+                    return Err(errors::ServiceError::BadRequest(format!(
+                        "email already in use: {}",
+                        s,
+                    )))
+                }
+                alt_user.email = Some(s.clone());
+                ResAccount::Email(s)
+            },
+            Self::Password(password_set) => {
+                let hash = password_set.verify(user, conn)?;
+                alt_user.hash = Some(hash);
+                ResAccount::Password
+            },
+            Self::Name(s) => {
+                if select(exists(users.filter(name.eq(&s)))).get_result(conn)? {
+                    return Err(errors::ServiceError::BadRequest(format!(
+                        "username already in use: {}",
+                        s,
+                    )))
+                }
+                alt_user.name = Some(s.clone());
+                ResAccount::Name(s)
+            },
+            Self::Timescale(timescale) => {
+                alt_user.timescale = Some(format!("{}", timescale));
+                ResAccount::Timescale(timescale)
+            },
+        };
+        diesel::update(user).set(&alt_user).execute(conn)?;
+
+        Ok(ResCommand::Modify(res_account))
+    }
+}
+
+impl PasswordSet {
+    fn verify(&self,
+        user: &models::AuthedUser,
+        conn: &models::Conn,
+    ) -> Result<String, errors::ServiceError> {
+        use crate::schema::users::dsl::users;
+
+        let min_password_len = 8;
+        let current_hash = users.find(user.id).first::<models::User>(conn)?.hash;
+        if utils::verify(&current_hash, &self.current)? {
+            if min_password_len <= self.new.len() {
+                if self.new == self.confirmation {
+                    let hash = utils::hash(&self.new)?;
+                    return Ok(hash)
+                }
+                return Err(errors::ServiceError::BadRequest(format!(
+                    "new password mismatched with confirmation.",
+                )))
+            }
+            return Err(errors::ServiceError::BadRequest(format!(
+                "password should be at least {} length.",
+                min_password_len,
+            )))
+        }
+        return Err(errors::ServiceError::BadRequest(format!(
+            "current password seems to be wrong.",
+        )))
+    }
+}
+
 impl Condition {
     fn extract(&self,
         user: &models::AuthedUser,
         conn: &models::Conn,
-    ) -> Result<ResBody, errors::ServiceError> {
+    ) -> Result<ResCommand, errors::ServiceError> {
         use crate::schema::arrows::dsl::arrows;
 
         let mut res_tasks = self.query(user, conn)?;
@@ -172,10 +359,8 @@ impl Condition {
             let _arrows: models::Arrows = arrows.load::<models::Arrow>(conn)?.into();
             self.filter_context(&mut res_tasks, &_arrows);
         }
-        let msg = format!("{} search results here.", res_tasks.len());
-        Ok(ResBody {
+        Ok(ResCommand::Search {
             tasks: res_tasks,
-            msg: msg,
         })
     }
     fn query(&self,
@@ -297,7 +482,9 @@ impl Condition {
 }
 
 impl ReqTasks {
-    fn dissemble(self, user: &models::AuthedUser) -> Acceptor {
+    fn read(self,
+        user: &models::AuthedUser,
+    ) -> Acceptor {
         let iter =  self.tasks.iter().enumerate().rev();
         let mut tmp_arrows = Vec::new();
         for (src, t) in iter.clone() {
@@ -480,7 +667,7 @@ impl Acceptor {
 impl Upserter {
     fn upsert(mut self,
         conn: &models::Conn,
-    ) -> Result<String, errors::ServiceError> {
+    ) -> Result<TasksInfo, errors::ServiceError> {
         use crate::schema::arrows::dsl::arrows;
         use crate::schema::tasks::dsl::tasks;
 
@@ -508,10 +695,10 @@ impl Upserter {
         }
         diesel::insert_into(arrows).values(&self.arrows.arrows).execute(conn)?;
 
-        Ok(format!("{} tasks created. {} tasks updated.",
-            created,
-            updated,
-        ))
+        Ok(TasksInfo {
+            created: created,
+            updated: updated,
+        })
     }
 }
 

@@ -4,13 +4,13 @@ use combine::error::StreamError;
 use std::str::FromStr;
 
 use crate::errors;
-use super::text;
+use super::text::*;
 
-impl FromStr for text::Text {
+impl FromStr for Req {
     type Err = errors::ServiceError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         // Ok(a_text().parse(s)?.0)
-        Ok(text::Text::ReqTasks(text::ReqTasks { tasks: Vec::new() }))
+        Ok(Req::Command(ReqCommand::Coffee))
     }
 }
