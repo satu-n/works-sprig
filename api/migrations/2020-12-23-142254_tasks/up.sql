@@ -2,7 +2,7 @@ CREATE TABLE tasks (
   id SERIAL PRIMARY KEY,
   title VARCHAR NOT NULL,
   assign INT NOT NULL REFERENCES users ON DELETE RESTRICT,
-  is_done BOOL NOT NULL DEFAULT 'false',
+  is_archived BOOL NOT NULL DEFAULT 'false',
   is_starred BOOL NOT NULL DEFAULT 'false',
   startable TIMESTAMP WITH TIME ZONE,
   deadline TIMESTAMP WITH TIME ZONE,

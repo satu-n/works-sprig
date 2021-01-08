@@ -36,7 +36,7 @@ table! {
         id -> Int4,
         title -> Varchar,
         assign -> Int4,
-        is_done -> Bool,
+        is_archived -> Bool,
         is_starred -> Bool,
         startable -> Nullable<Timestamptz>,
         deadline -> Nullable<Timestamptz>,
@@ -59,6 +59,14 @@ table! {
     }
 }
 
+table! {
+    utcs (id) {
+        id -> Int4,
+        sup -> Timestamptz,
+        inf -> Timestamptz,
+    }
+}
+
 joinable!(stripes -> users (owner));
 joinable!(tasks -> users (assign));
 
@@ -69,4 +77,5 @@ allow_tables_to_appear_in_same_query!(
     stripes,
     tasks,
     users,
+    utcs,
 );

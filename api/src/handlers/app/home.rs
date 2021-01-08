@@ -64,14 +64,14 @@ impl Config {
         conn: &models::Conn,
     ) -> Result<Vec<models::ResTask>, errors::ServiceError> {
         use crate::schema::stripes::dsl::{stripes, owner};
-        use crate::schema::tasks::dsl::{tasks, assign, is_done, is_starred, updated_at};
+        use crate::schema::tasks::dsl::{tasks, assign, is_archived, is_starred, updated_at};
         use crate::schema::users::dsl::users;
 
         let archives = if let Self::Archives = self { true } else { false };
 
         let _intermediate = tasks
             .filter(assign.eq(&user.id))
-            .filter(is_done.eq(&archives))
+            .filter(is_archived.eq(&archives))
             .inner_join(users)
             .select(models::ResTask::columns());
         let res_tasks = if archives {
