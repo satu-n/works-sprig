@@ -1,4 +1,5 @@
 use actix_web::{error::{BlockingError, ResponseError}, http::StatusCode, HttpResponse};
+use combine::error::StringStreamError;
 use derive_more::Display;
 use diesel::result::{DatabaseErrorKind, Error as DbError};
 
@@ -63,6 +64,18 @@ impl From<regex::Error> for ServiceError {
             )),
             regex::Error::CompiledTooBig(_) => Self::BadRequest(format!(
                 "regex compiled too big."
+            )),
+            _ => Self::InternalServerError,
+        }
+    }
+}
+
+impl From<StringStreamError> for ServiceError {
+    fn from(error: StringStreamError) -> Self {
+        dbg!(&error);
+        match error {
+            StringStreamError::UnexpectedParse => Self::BadRequest(format!(
+                "there seems to be a syntax error.",
             )),
             _ => Self::InternalServerError,
         }
