@@ -1,10 +1,10 @@
 use actix_web::{dev::Payload, Error, FromRequest, HttpRequest};
-use chrono::{DateTime, NaiveDateTime, NaiveTime, TimeZone, Utc};
+use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use diesel::prelude::*;
-use diesel::{r2d2::ConnectionManager, PgConnection}; // TODO redundant PgConnection ?
-use diesel::sql_types::{Nullable, Float};
+use diesel::{r2d2::ConnectionManager, PgConnection};
 use diesel::expression::{bound, IntoSql};
+use diesel::sql_types::{Nullable, Float};
 use futures::future::{err, ok, Ready};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
@@ -54,7 +54,7 @@ pub struct Task {
     pub id: i32,
     pub title: String,
     pub assign: i32,
-    pub is_done: bool,
+    pub is_archived: bool,
     pub is_starred: bool,
     pub startable: Option<DateTime<Utc>>,
     pub deadline: Option<DateTime<Utc>>,
@@ -105,7 +105,7 @@ pub struct ResTask {
     pub id: i32,
     pub title: String,
     pub assign: String,
-    pub is_done: bool,
+    pub is_archived: bool,
     pub is_starred: bool,
     pub startable: Option<DateTime<Utc>>,
     pub deadline: Option<DateTime<Utc>>,
@@ -124,7 +124,7 @@ impl Selectable for ResTask {
         tasks::id,
         tasks::title,
         users::name,
-        tasks::is_done,
+        tasks::is_archived,
         tasks::is_starred,
         tasks::startable,
         tasks::deadline,
@@ -136,7 +136,7 @@ impl Selectable for ResTask {
         tasks::id,
         tasks::title,
         users::name,
-        tasks::is_done,
+        tasks::is_archived,
         tasks::is_starred,
         tasks::startable,
         tasks::deadline,
@@ -294,11 +294,82 @@ impl Arrows {
     }
 }
 
-impl AuthedUser {
-    pub fn globalize(&self, dt: &NaiveDateTime) -> DateTime<Utc> {
-        self.tz.from_local_datetime(dt).unwrap().with_timezone(&Utc)
+#[derive(Default, Debug, Eq, PartialEq)]
+pub struct EasyDateTime {
+    pub date: Option<EasyDate>,
+    pub time: Option<EasyTime>,
+}
+#[derive(Default, Debug, Eq, PartialEq)]
+pub struct EasyDate {
+    pub y: Option<i32>,
+    pub m: Option<i32>,
+    pub d: Option<i32>,
+}
+#[derive(Default, Debug, Eq, PartialEq)]
+pub struct EasyTime {
+    pub h: Option<i32>,
+    pub m: Option<i32>,
+}
+impl EasyDateTime {
+    fn complete(&self, tz: &Tz) -> NaiveDateTime {
+        let now = Utc::now().with_timezone(tz).naive_local();
+        let mut inherit = false;
+        let time = match &self.time {
+            None => NaiveTime::from_hms(0, 0, 0),
+            Some(time) => time.complete(&mut inherit, &now),
+        };
+        let date = match &self.date {
+            None => now.date(),
+            Some(date) => date.complete(&mut inherit, &now),
+        };
+        NaiveDateTime::new(date, time)
     }
-    pub fn localize(&self, dt: &DateTime<Utc>) -> NaiveDateTime {
-        dt.with_timezone(&self.tz).naive_local()
+}
+impl EasyTime {
+    fn complete(&self, inherit: &mut bool, now: &NaiveDateTime) -> NaiveTime {
+        let m = match self.m {
+            None => 0,
+            Some(m) => { *inherit = true; m as u32},
+        };
+        let h = match self.h {
+            None if *inherit => now.format("%H").to_string().parse::<u32>().unwrap(),
+            None => 0,
+            Some(h) => { *inherit = true; h as u32},
+        };
+        NaiveTime::from_hms(h, m, 0)
+    }
+}
+impl EasyDate {
+    fn complete(&self, inherit: &mut bool, now: &NaiveDateTime) -> NaiveDate {
+        let d = match self.d {
+            None if *inherit => now.format("%d").to_string().parse::<u32>().unwrap(),
+            None => 1,
+            Some(d) => { *inherit = true; d as u32},
+        };
+        let m = match self.m {
+            None if *inherit => now.format("%m").to_string().parse::<u32>().unwrap(),
+            None => 1,
+            Some(m) => { *inherit = true; m as u32},
+        };
+        let y = self.y.unwrap_or(
+            now.format("%Y").to_string().parse::<i32>().unwrap()
+        );
+        NaiveDate::from_ymd(y, m, d)
+    }
+}
+
+impl AuthedUser {
+    pub fn globalize(&self, easy: &EasyDateTime
+    ) -> Result<DateTime<Utc>, errors::ServiceError> {
+        let local = easy.complete(&self.tz);
+        if let Some(dt) = self.tz.from_local_datetime(&local).single() {
+            return Ok(dt.with_timezone(&Utc))
+        }
+        Err(errors::ServiceError::BadRequest(
+            "failed to interpret datetime.".into()))
+    }
+    pub fn localize(&self, dt: &DateTime<Utc>) -> String {
+        let local = dt.with_timezone(&self.tz).naive_local();
+        local.format("%Y/%m/%dT%H:%M").to_string()
     }
 }
