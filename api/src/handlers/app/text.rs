@@ -1,5 +1,5 @@
 use actix_web::{web, HttpResponse};
-use chrono::{DateTime, NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use derive_more::Display;
 use diesel::prelude::*;
 use regex::Regex;
@@ -18,7 +18,7 @@ pub struct ReqBody {
 }
 
 #[derive(Serialize)]
-pub enum ResBody {
+enum ResBody {
     Command(ResCommand),
     Tasks {
         tasks: Vec<models::ResTask>,
@@ -39,15 +39,16 @@ pub async fn text(
         match req {
             Req::Command(cmd) => {
                 let res_command = match cmd {
-                    ReqCommand::Info              => ResCommand::info(&user, &conn)?,
-                    ReqCommand::Modify(account)   => account.modify(&user, &conn)?,
+                    ReqCommand::Help              => ResCommand::help(),
+                    ReqCommand::User(request)     => request.handle(&user, &conn)?,
                     ReqCommand::Search(condition) => condition.extract(&user, &conn)?,
+                    ReqCommand::Tutorial          => ResCommand::tutorial(),
                     ReqCommand::Coffee            => ResCommand::Teapot,
                 };
                 Ok(ResBody::Command(res_command))
             },
             Req::Tasks(tasks) => {
-                let info = tasks.read(&user).accept(&user, &conn)?.upsert(&conn)?;
+                let info = tasks.read(&user)?.accept(&user, &conn)?.upsert(&conn)?;
                 let res_tasks =  home::Config::Home.query(&user, &conn)?;
                 Ok(ResBody::Tasks {
                     tasks: res_tasks,
@@ -60,54 +61,74 @@ pub async fn text(
     Ok(HttpResponse::Ok().json(res_body))
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Req {
     Command(ReqCommand),
     Tasks(ReqTasks),
 }
 
+#[derive(Debug, PartialEq)]
 pub enum ReqCommand {
-    Info,
-    Modify(ReqAccount),
+    Help,
+    User(ReqUser),
     Search(Condition),
+    Tutorial,
     Coffee,
 }
 
-pub enum ReqAccount {
+#[derive(Debug, Eq, PartialEq)]
+pub enum ReqUser {
+    Info,
+    Modify(ReqModify),
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub enum ReqModify {
     Email(String),
     Password(PasswordSet),
     Name(String),
     Timescale(Timescale),
 }
 
+#[derive(Debug, Eq, PartialEq)]
 pub struct PasswordSet {
-    current: String,
-    new: String,
-    confirmation: String,
+    pub old: String,
+    pub new: String,
+    pub confirmation: String,
 }
 
 #[derive(Serialize)]
 enum ResCommand {
-    Info {
-        since: DateTime<Utc>,
-        executed: i32,
-    },
-    Modify(ResAccount),
+    Help(String),
+    User(ResUser),
     Search {
+        tasks: Vec<models::ResTask>,
+    },
+    Tutorial {
         tasks: Vec<models::ResTask>,
     },
     Teapot,
 }
 
 #[derive(Serialize)]
-enum ResAccount {
+enum ResUser {
+    Info {
+        since: DateTime<Utc>,
+        executed: i32,
+    },
+    Modify(ResModify),
+}
+
+#[derive(Serialize)]
+enum ResModify {
     Email(String),
     Password,
     Name(String),
     Timescale(Timescale),
 }
 
-#[derive(Display, Serialize)]
-enum Timescale {
+#[derive(Debug, Eq, PartialEq, Display, Serialize)]
+pub enum Timescale {
     #[display(fmt = "Y")]
     Year,
     #[display(fmt = "Q")]
@@ -134,124 +155,96 @@ struct TasksInfo {
     updated: i32,
 }
 
+#[derive(Default, Debug, PartialEq)]
 pub struct Condition {
+    pub boolean: Boolean,
     pub context: Range<i32>,
+    pub weight: Range<f32>,
+    pub startable: Range<models::EasyDateTime>,
+    pub deadline: Range<models::EasyDateTime>,
+    pub created_at: Range<models::EasyDateTime>,
+    pub updated_at: Range<models::EasyDateTime>,
     pub title: Option<Expression>,
     pub assign: Option<Expression>,
-    pub is_done: Option<bool>,
-    pub is_starred: Option<bool>,
-    pub startable: Range<NaiveDateTime>,
-    pub deadline: Range<NaiveDateTime>,
-    pub weight: Range<f32>,
     pub link: Option<Expression>,
-    pub created_at: Range<NaiveDateTime>,
-    pub updated_at: Range<NaiveDateTime>,
+}
+
+#[derive(Default, Debug, Eq, PartialEq)]
+pub struct Boolean {
+    pub is_archived: Option<bool>,
+    pub is_starred: Option<bool>,
     pub is_leaf: Option<bool>,
     pub is_root: Option<bool>,
 }
 
+type Range<T> = (Option<T>, Option<T>);
+
+#[derive(Debug, Eq, PartialEq)]
 pub enum Expression {
     Words(Vec<String>),
     Regex(String),
 }
 
-type Range<T> = (Option<T>, Option<T>);
-
+#[derive(Default, Debug, PartialEq)]
 pub struct ReqTasks {
     pub tasks: Vec<ReqTask>,
 }
 
+#[derive(Default, Debug, PartialEq)]
 pub struct ReqTask {
-    // indent joint] #id * TITLE startable- -deadline $weight @assign &link [joint
+    // indent #id joint] * TITLE startable- -deadline $weight @assign [joint link
     pub indent: i32,
-    pub joint_head: Option<String>,
-    pub joint_tail: Option<String>,
-    pub id: Option<i32>,
-    pub title: String,
-    pub assign: Option<String>,
-    pub is_starred: bool,
-    pub startable: Option<NaiveDateTime>,
-    pub deadline: Option<NaiveDateTime>,
-    pub weight: Option<f32>,
+    pub attribute: Attribute,
     pub link: Option<String>,
 }
 
-struct Acceptor {
-    tasks: Vec<TmpTask>,
-    arrows: TmpArrows,
-}
-
-type TmpArrows =  models::Arrows;
-
-struct TmpTask {
-    id: Option<i32>,
-    title: String,
-    assign: Option<String>,
-    is_starred: bool,
-    startable: Option<DateTime<Utc>>,
-    deadline: Option<DateTime<Utc>>,
-    weight: Option<f32>,
-    link: Option<String>,
-}
-
-struct Upserter {
-    tasks: Vec<TmpTaskOk>,
-    arrows: TmpArrows,
-}
-
-struct TmpTaskOk {
-    id: Option<i32>,
-    title: String,
-    assign: i32,
-    is_starred: bool,
-    startable: Option<DateTime<Utc>>,
-    deadline: Option<DateTime<Utc>>,
-    weight: Option<f32>,
-    link: Option<String>,
-}
-
-#[derive(Insertable)]
-#[table_name = "tasks"]
-struct NewTask {
-    title: String,
-    assign: i32,
-    is_starred: bool,
-    startable: Option<DateTime<Utc>>,
-    deadline: Option<DateTime<Utc>>,
-    weight: Option<f32>,
-    link: Option<String>,
-}
-
-#[derive(AsChangeset)]
-#[table_name = "tasks"]
-struct AltTask {
-    title: Option<String>,
-    assign: Option<i32>,
-    is_starred: Option<bool>,
-    startable: Option<Option<DateTime<Utc>>>,
-    deadline: Option<Option<DateTime<Utc>>>,
-    weight: Option<Option<f32>>,
-    link: Option<Option<String>>,
+#[derive(Default, Debug, PartialEq)]
+pub struct Attribute {
+    pub is_starred: bool,
+    pub id: Option<i32>,
+    pub weight: Option<f32>,
+    pub joint_head: Option<String>,
+    pub joint_tail: Option<String>,
+    pub assign: Option<String>,
+    pub startable: Option<models::EasyDateTime>,
+    pub deadline: Option<models::EasyDateTime>,
+    pub title: Vec<String>,
 }
 
 impl ResCommand {
-    fn info(
-        user: &models::AuthedUser,
-        conn: &models::Conn,
-    ) -> Result<Self, errors::ServiceError> {
-        use crate::schema::tasks::dsl::{tasks, assign, is_done};
-        use crate::schema::users::dsl::{users, created_at};
-
-        let since = users.find(user.id).select(created_at).first::<DateTime<Utc>>(conn)?;
-        let executed = tasks
-        .filter(assign.eq(&user.id))
-        .filter(is_done)
-        .count().get_result::<i64>(conn)? as i32;
-
-        Ok(Self::Info {
-            since: since,
-            executed: executed,
-        })
+    fn help() -> Self {
+        Self::Help(String::from(
+            "\
+            <!-- Select one, remove <!-- prefix, configure it, and send. -->\n\
+            <!-- / <!-- this help -->\n\
+            <!-- /tutorial <!-- tutorial -->\n\
+            <!-- /u <!-- show user info -->\n\
+            <!-- /u -e {email} <!-- modify user email -->\n\
+            <!-- /u -p {old} {new} {confirmation} <!-- modify user password -->\n\
+            <!-- /u -n {name} <!-- modify user name -->\n\
+            <!-- /u -t {timescale} <!-- modify user default timescale -->\n\
+            <!-- /s {conditions} <!-- search for tasks by conditions -->\n\
+            <!-- /s {conditions} <!-- TODO search examples -->\n\
+            "
+        ))
+    }
+    fn tutorial() -> Self {
+        Self::Tutorial {
+            tasks : vec![
+                models::ResTask {
+                    id: 0,
+                    title: String::from("Press H to return home"),
+                    assign: String::from("sprig"),
+                    is_archived: false,
+                    is_starred: true,
+                    startable: None,
+                    deadline: None,
+                    priority: None,
+                    weight: None,
+                    link: None, // TODO tutorial external
+                },
+            ],
+        }
     }
 }
 
@@ -264,11 +257,42 @@ struct AltUser {
     timescale: Option<String>,
 }
 
-impl ReqAccount {
-    fn modify(self,
+impl ReqUser {
+    fn handle(self,
         user: &models::AuthedUser,
         conn: &models::Conn,
     ) -> Result<ResCommand, errors::ServiceError> {
+        let res = match self {
+            Self::Info => self.info(user, conn)?,
+            Self::Modify(req) => ResUser::Modify(req.exec(user, conn)?),
+        };
+        Ok(ResCommand::User(res))
+    }
+    fn info(&self,
+        user: &models::AuthedUser,
+        conn: &models::Conn,
+    ) -> Result<ResUser, errors::ServiceError> {
+        use crate::schema::tasks::dsl::{tasks, assign, is_archived};
+        use crate::schema::users::dsl::{users, created_at};
+
+        let since = users.find(user.id).select(created_at).first::<DateTime<Utc>>(conn)?;
+        let executed = tasks
+        .filter(assign.eq(&user.id))
+        .filter(is_archived)
+        .count().get_result::<i64>(conn)? as i32;
+
+        Ok(ResUser::Info {
+            since: since,
+            executed: executed,
+        })
+    }
+}
+
+impl ReqModify {
+    fn exec(self,
+        user: &models::AuthedUser,
+        conn: &models::Conn,
+    ) -> Result<ResModify, errors::ServiceError> {
         use diesel::dsl::{select, exists};
         use crate::schema::users::dsl::{users, email, name};
 
@@ -278,7 +302,7 @@ impl ReqAccount {
             name: None,
             timescale: None,
         };
-        let res_account = match self {
+        let res = match self {
             Self::Email(s) => {
                 if select(exists(users.filter(email.eq(&s)))).get_result(conn)? {
                     return Err(errors::ServiceError::BadRequest(format!(
@@ -287,12 +311,12 @@ impl ReqAccount {
                     )))
                 }
                 alt_user.email = Some(s.clone());
-                ResAccount::Email(s)
+                ResModify::Email(s)
             },
             Self::Password(password_set) => {
                 let hash = password_set.verify(user, conn)?;
                 alt_user.hash = Some(hash);
-                ResAccount::Password
+                ResModify::Password
             },
             Self::Name(s) => {
                 if select(exists(users.filter(name.eq(&s)))).get_result(conn)? {
@@ -302,16 +326,16 @@ impl ReqAccount {
                     )))
                 }
                 alt_user.name = Some(s.clone());
-                ResAccount::Name(s)
+                ResModify::Name(s)
             },
             Self::Timescale(timescale) => {
                 alt_user.timescale = Some(format!("{}", timescale));
-                ResAccount::Timescale(timescale)
+                ResModify::Timescale(timescale)
             },
         };
         diesel::update(user).set(&alt_user).execute(conn)?;
 
-        Ok(ResCommand::Modify(res_account))
+        Ok(res)
     }
 }
 
@@ -323,12 +347,12 @@ impl PasswordSet {
         use crate::schema::users::dsl::users;
 
         let min_password_len = 8;
-        let current_hash = users.find(user.id).first::<models::User>(conn)?.hash;
-        if utils::verify(&current_hash, &self.current)? {
+        let old_hash = users.find(user.id).first::<models::User>(conn)?.hash;
+        if utils::verify(&old_hash, &self.old)? {
             if min_password_len <= self.new.len() {
                 if self.new == self.confirmation {
-                    let hash = utils::hash(&self.new)?;
-                    return Ok(hash)
+                    let new_hash = utils::hash(&self.new)?;
+                    return Ok(new_hash)
                 }
                 return Err(errors::ServiceError::BadRequest(format!(
                     "new password mismatched with confirmation.",
@@ -382,51 +406,51 @@ impl Condition {
         .select(models::ResTask::columns())
         .into_boxed();
 
-        if let Some(b) = self.is_done {
-            query = query.filter(is_done.eq(b))
+        if let Some(b) = &self.boolean.is_archived {
+            query = query.filter(is_archived.eq(b))
         }
-        if let Some(b) = self.is_starred {
+        if let Some(b) = &self.boolean.is_starred {
             query = query.filter(is_starred.eq(b))
         }
-        if let Some(dt) = self.startable.0 {
-            query = query.filter(startable.ge(user.globalize(&dt)))
-        }
-        if let Some(dt) = self.startable.1 {
-            query = query.filter(startable.le(user.globalize(&dt)))
-        }
-        if let Some(dt) = self.deadline.0 {
-            query = query.filter(deadline.ge(user.globalize(&dt)))
-        }
-        if let Some(dt) = self.deadline.1 {
-            query = query.filter(deadline.le(user.globalize(&dt)))
-        }
-        if let Some(w) = self.weight.0 {
-            query = query.filter(weight.ge(w))
-        }
-        if let Some(w) = self.weight.1 {
-            query = query.filter(weight.le(w))
-        }
-        if let Some(dt) = self.created_at.0 {
-            query = query.filter(created_at.ge(user.globalize(&dt)))
-        }
-        if let Some(dt) = self.created_at.1 {
-            query = query.filter(created_at.le(user.globalize(&dt)))
-        }
-        if let Some(dt) = self.updated_at.0 {
-            query = query.filter(updated_at.ge(user.globalize(&dt)))
-        }
-        if let Some(dt) = self.updated_at.1 {
-            query = query.filter(updated_at.le(user.globalize(&dt)))
-        }
-        if let Some(b) = self.is_leaf {
+        if let Some(b) = &self.boolean.is_leaf {
             query = query.filter(
                 exists(arrows.filter(target.eq(id))).eq(!b)
             )
         }
-        if let Some(b) = self.is_root {
+        if let Some(b) = &self.boolean.is_root {
             query = query.filter(
                 exists(arrows.filter(source.eq(id))).eq(!b)
             )
+        }
+        if let Some(w) = &self.weight.0 {
+            query = query.filter(weight.ge(w))
+        }
+        if let Some(w) = &self.weight.1 {
+            query = query.filter(weight.le(w))
+        }
+        if let Some(dt) = &self.startable.0 {
+            query = query.filter(startable.ge(user.globalize(&dt)?))
+        }
+        if let Some(dt) = &self.startable.1 {
+            query = query.filter(startable.le(user.globalize(&dt)?))
+        }
+        if let Some(dt) = &self.deadline.0 {
+            query = query.filter(deadline.ge(user.globalize(&dt)?))
+        }
+        if let Some(dt) = &self.deadline.1 {
+            query = query.filter(deadline.le(user.globalize(&dt)?))
+        }
+        if let Some(dt) = &self.created_at.0 {
+            query = query.filter(created_at.ge(user.globalize(&dt)?))
+        }
+        if let Some(dt) = &self.created_at.1 {
+            query = query.filter(created_at.le(user.globalize(&dt)?))
+        }
+        if let Some(dt) = &self.updated_at.0 {
+            query = query.filter(updated_at.ge(user.globalize(&dt)?))
+        }
+        if let Some(dt) = &self.updated_at.1 {
+            query = query.filter(updated_at.le(user.globalize(&dt)?))
         }
         if let Some(Expression::Words(words)) = &self.title {
             for w in words {
@@ -481,45 +505,89 @@ impl Condition {
     }
 }
 
+struct Acceptor {
+    tasks: Vec<TmpTask>,
+    arrows: TmpArrows,
+}
+
+type TmpArrows =  models::Arrows;
+
+struct TmpTask {
+    id: Option<i32>,
+    title: String,
+    assign: Option<String>,
+    is_starred: bool,
+    startable: Option<DateTime<Utc>>,
+    deadline: Option<DateTime<Utc>>,
+    weight: Option<f32>,
+    link: Option<String>,
+}
+
 impl ReqTasks {
     fn read(self,
         user: &models::AuthedUser,
-    ) -> Acceptor {
+    ) -> Result<Acceptor, errors::ServiceError> {
         let iter =  self.tasks.iter().enumerate().rev();
         let mut tmp_arrows = Vec::new();
         for (src, t) in iter.clone() {
             if let Some((tgt, _)) = iter.clone()
             .filter(|(idx, _)| *idx < src)
-            .find(|(_, _t)| _t.indent == t.indent - 1) {
+            .find(|(_, _t)| _t.indent < t.indent) {
                 tmp_arrows.push(models::Arrow {
                     source: src as i32,
                     target: tgt as i32,
                 });
             }
             for (tgt, _) in iter.clone()
-            .filter(|(_, _t)| _t.joint_tail == t.joint_head) {
+            .filter(|(_, _t)| _t.attribute.joint_tail == t.attribute.joint_head) {
                 tmp_arrows.push(models::Arrow {
                     source: src as i32,
                     target: tgt as i32,
                 });
             }
         }
-        let tmp_tasks = self.tasks.into_iter().map(|t| TmpTask {
-            id: t.id,
-            title: t.title,
-            assign: t.assign,
-            is_starred: t.is_starred,
-            startable: t.startable.map(|dt| user.globalize(&dt)),
-            deadline: t.deadline.map(|dt| user.globalize(&dt)),
-            weight: t.weight,
-            link: t.link,
-        }).collect::<Vec<TmpTask>>();
-
-        Acceptor {
+        let mut tmp_tasks = Vec::new();
+        for t in self.tasks {
+            let mut startable = None;
+            if let Some(dt) = t.attribute.startable {
+                startable = Some(user.globalize(&dt)?)
+            }
+            let mut deadline = None;
+            if let Some(dt) = t.attribute.deadline {
+                deadline = Some(user.globalize(&dt)?)
+            }
+            tmp_tasks.push(TmpTask {
+                id: t.attribute.id,
+                title: t.attribute.title.join(" "),
+                assign: t.attribute.assign,
+                is_starred: t.attribute.is_starred,
+                startable: startable,
+                deadline: deadline,
+                weight: t.attribute.weight,
+                link: t.link,
+            })
+        }
+        Ok(Acceptor {
             tasks: tmp_tasks,
             arrows: tmp_arrows.into(),
-        }
+        })
     }
+}
+
+struct Upserter {
+    tasks: Vec<TmpTaskOk>,
+    arrows: TmpArrows,
+}
+
+struct TmpTaskOk {
+    id: Option<i32>,
+    title: String,
+    assign: i32,
+    is_starred: bool,
+    startable: Option<DateTime<Utc>>,
+    deadline: Option<DateTime<Utc>>,
+    weight: Option<f32>,
+    link: Option<String>,
 }
 
 impl Acceptor {
@@ -662,6 +730,30 @@ impl Acceptor {
         }
         Ok(assigns)
     }
+}
+
+#[derive(Insertable)]
+#[table_name = "tasks"]
+struct NewTask {
+    title: String,
+    assign: i32,
+    is_starred: bool,
+    startable: Option<DateTime<Utc>>,
+    deadline: Option<DateTime<Utc>>,
+    weight: Option<f32>,
+    link: Option<String>,
+}
+
+#[derive(AsChangeset)]
+#[table_name = "tasks"]
+struct AltTask {
+    title: Option<String>,
+    assign: Option<i32>,
+    is_starred: Option<bool>,
+    startable: Option<Option<DateTime<Utc>>>,
+    deadline: Option<Option<DateTime<Utc>>>,
+    weight: Option<Option<f32>>,
+    link: Option<Option<String>>,
 }
 
 impl Upserter {
