@@ -56,7 +56,7 @@ type FromU
 
 
 type FromS
-    = RegisteredYou (U.HttpResult ())
+    = RegisteredYou U.HttpResultAny
 
 
 update : Msg -> Mdl -> ( Mdl, Cmd Msg )
@@ -70,7 +70,7 @@ update msg mdl =
                             ( { mdl | msg = fault }, Cmd.none )
 
                         _ ->
-                            ( mdl, registerMe mdl.req )
+                            ( mdl, U.post_ EP.Register (encReq mdl.req) (FromS << RegisteredYou) )
 
                 EditKey s ->
                     let
@@ -129,11 +129,6 @@ faultOf mdl =
 
     else
         Nothing
-
-
-registerMe : Req -> Cmd Msg
-registerMe req =
-    U.post_ EP.Register (encReq req) (FromS << RegisteredYou)
 
 
 encReq : Req -> Encode.Value

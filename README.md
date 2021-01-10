@@ -14,7 +14,7 @@ __Under development:__
 [tips]: https://github.com/satu-n/tips
 
 <!-- INTERNAL LINK -->
-[placeholder]: web/_init/src/Page/App/placeholder.md
+[placeholder]: web/_init/src/Page/App/placeholder.txt
 
 ## What's this
 

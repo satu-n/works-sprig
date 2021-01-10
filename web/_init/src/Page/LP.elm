@@ -1,5 +1,6 @@
 module Page.LP exposing (..)
 
+import Dict
 import EndPoint as EP
 import Html exposing (..)
 import Html.Attributes exposing (class)
@@ -7,6 +8,8 @@ import Http
 import Json.Decode as Decode exposing (Decoder, string)
 import Json.Decode.Pipeline exposing (required)
 import Page as P
+import Time
+import TimeZone
 import Util as U
 
 
@@ -21,23 +24,34 @@ type alias Mdl =
 
 
 type alias User =
-    { name : String }
+    { name : String
+    , zone : Time.Zone
+    }
+
+
+type alias Res =
+    { name : String
+    , tz : String
+    }
 
 
 init : ( Mdl, Cmd Msg )
 init =
-    ( { user = { name = "" }, msg = "" }, getMe )
+    ( { user = { name = "", zone = Time.utc }, msg = "" }
+    , getMe
+    )
 
 
 getMe : Cmd Msg
 getMe =
-    U.get EP.Auth (FromS << GotYou) decUser
+    U.get EP.Auth (FromS << GotYou) decRes
 
 
-decUser : Decoder User
-decUser =
-    Decode.succeed User
+decRes : Decoder Res
+decRes =
+    Decode.succeed Res
         |> required "name" string
+        |> required "tz" string
 
 
 
@@ -50,7 +64,7 @@ type Msg
 
 
 type FromS
-    = GotYou (U.HttpResult User)
+    = GotYou (U.HttpResult Res)
 
 
 update : Msg -> Mdl -> ( Mdl, Cmd Msg )
@@ -58,14 +72,25 @@ update msg mdl =
     case msg of
         FromS fromS ->
             case fromS of
-                GotYou (Err (Http.BadStatus 401)) ->
-                    ( mdl, U.cmd Goto P.Login )
-
                 GotYou (Err e) ->
-                    ( { mdl | msg = U.strHttpError e }, Cmd.none )
+                    case U.errCode e of
+                        Just 401 ->
+                            ( mdl, U.cmd Goto P.Login )
 
-                GotYou (Ok user) ->
-                    ( { mdl | user = user }, U.cmd Goto (P.App_ P.App) )
+                        _ ->
+                            ( { mdl | msg = U.strHttpError e }, Cmd.none )
+
+                GotYou (Ok ( _, res )) ->
+                    ( { mdl
+                        | user =
+                            { name = res.name
+                            , zone =
+                                Maybe.withDefault Time.utc
+                                    (Dict.get res.tz TimeZone.zones |> Maybe.map (\f -> f ()))
+                            }
+                      }
+                    , U.cmd Goto (P.App_ P.App)
+                    )
 
         _ ->
             ( mdl, Cmd.none )

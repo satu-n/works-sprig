@@ -46,7 +46,7 @@ type FromU
 
 
 type FromS
-    = InvitedYou (U.HttpResult ())
+    = InvitedYou U.HttpResultAny
 
 
 update : Msg -> Mdl -> ( Mdl, Cmd Msg )
@@ -55,7 +55,7 @@ update msg mdl =
         FromU fromU ->
             case fromU of
                 InviteMe ->
-                    ( mdl, inviteMe mdl.req )
+                    ( mdl, U.post_ EP.Invite (encReq mdl.req) (FromS << InvitedYou) )
 
                 EditEmail s ->
                     let
@@ -77,11 +77,6 @@ update msg mdl =
 
         _ ->
             ( mdl, Cmd.none )
-
-
-inviteMe : Req -> Cmd Msg
-inviteMe req =
-    U.post_ EP.Invite (encReq req) (FromS << InvitedYou)
 
 
 encReq : Req -> Encode.Value

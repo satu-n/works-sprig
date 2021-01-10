@@ -19,7 +19,7 @@ struct ResBody {
     config: Config,
 }
 
-pub async fn home(
+pub async fn home( // FIXME 500 ISE
     q: web::Query<Q>,
     user: models::AuthedUser,
     pool: web::Data<models::Pool>,

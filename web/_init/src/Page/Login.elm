@@ -56,7 +56,7 @@ type FromU
 
 
 type FromS
-    = LoggedIn (U.HttpResult ())
+    = LoggedIn U.HttpResultAny
 
 
 update : Msg -> Mdl -> ( Mdl, Cmd Msg )
@@ -65,7 +65,7 @@ update msg mdl =
         FromU fromU ->
             case fromU of
                 Login ->
-                    ( mdl, login mdl.req )
+                    ( mdl, U.post_ EP.Auth (encReq mdl.req) (FromS << LoggedIn) )
 
                 NoAccount ->
                     ( { mdl | forgot_pw = False }, U.cmd Goto P.Invite )
@@ -123,16 +123,12 @@ update msg mdl =
             ( mdl, Cmd.none )
 
 
-login : Req -> Cmd Msg
-login req =
-    U.post_ EP.Auth (encReq req) (FromS << LoggedIn)
-
-
 encReq : Req -> Encode.Value
 encReq req =
     Encode.object
         [ ( "email", Encode.string req.email )
         , ( "password", Encode.string req.password )
+        , ( "tz", Encode.string req.tz )
         ]
 
 

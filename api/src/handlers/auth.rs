@@ -18,6 +18,7 @@ pub struct ReqBody {
 #[derive(Serialize)]
 struct ResBody {
     name: String,
+    tz: Tz,
 }
 
 pub async fn login(
@@ -74,11 +75,15 @@ impl ReqBody {
 }
 
 impl models::AuthedUser {
-    fn to_res(&self, conn: &models::Conn
+    fn to_res(&self,
+        conn: &models::Conn,
     ) -> Result<ResBody, errors::ServiceError> {
         use crate::schema::users::dsl::users;
 
         let user = users.find(self.id).first::<models::User>(conn)?;
-        Ok(ResBody { name: user.name })
+        Ok(ResBody {
+            name: user.name,
+            tz: self.tz,
+        })
     }
 }
