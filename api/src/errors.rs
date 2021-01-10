@@ -5,9 +5,7 @@ use diesel::result::{DatabaseErrorKind, Error as DbError};
 
 #[derive(Debug, Display)]
 pub enum ServiceError {
-    #[display(fmt = "Oops, {}", _0)]
     BadRequest(String),
-
     Unauthorized,
     InternalServerError,
 }

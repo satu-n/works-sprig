@@ -1,5 +1,6 @@
 use actix_web::{web, HttpResponse};
 use chrono::{DateTime, Utc};
+use chrono_tz::Tz;
 use derive_more::Display;
 use diesel::prelude::*;
 use regex::Regex;
@@ -14,7 +15,7 @@ use super::home;
 
 #[derive(Deserialize)]
 pub struct ReqBody {
-    text: String,
+    pub text: String,
 }
 
 #[derive(Serialize)]
@@ -32,7 +33,7 @@ pub async fn text(
     pool: web::Data<models::Pool>,
 ) -> Result<HttpResponse, errors::ServiceError> {
 
-    let req = req.into_inner().text.parse::<Req>()?;
+    let req = req.into_inner().wash().parse::<Req>()?;
 
     let res_body = web::block(move || {
         let conn = pool.get().unwrap();
@@ -43,7 +44,7 @@ pub async fn text(
                     ReqCommand::User(request)     => request.handle(&user, &conn)?,
                     ReqCommand::Search(condition) => condition.extract(&user, &conn)?,
                     ReqCommand::Tutorial          => ResCommand::tutorial(),
-                    ReqCommand::Coffee            => ResCommand::Teapot,
+                    ReqCommand::Coffee            => return Err(errors::ServiceError::BadRequest("I'm a teapot.".into())),
                 };
                 Ok(ResBody::Command(res_command))
             },
@@ -76,13 +77,13 @@ pub enum ReqCommand {
     Coffee,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum ReqUser {
     Info,
     Modify(ReqModify),
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum ReqModify {
     Email(String),
     Password(PasswordSet),
@@ -90,7 +91,7 @@ pub enum ReqModify {
     Timescale(Timescale),
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct PasswordSet {
     pub old: String,
     pub new: String,
@@ -107,7 +108,6 @@ enum ResCommand {
     Tutorial {
         tasks: Vec<models::ResTask>,
     },
-    Teapot,
 }
 
 #[derive(Serialize)]
@@ -115,6 +115,7 @@ enum ResUser {
     Info {
         since: DateTime<Utc>,
         executed: i32,
+        tz: Tz,
     },
     Modify(ResModify),
 }
@@ -127,7 +128,7 @@ enum ResModify {
     Timescale(Timescale),
 }
 
-#[derive(Debug, Eq, PartialEq, Display, Serialize)]
+#[derive(Debug, PartialEq, Display, Serialize)]
 pub enum Timescale {
     #[display(fmt = "Y")]
     Year,
@@ -155,7 +156,7 @@ struct TasksInfo {
     updated: i32,
 }
 
-#[derive(Default, Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq, PartialOrd)]
 pub struct Condition {
     pub boolean: Boolean,
     pub context: Range<i32>,
@@ -169,7 +170,7 @@ pub struct Condition {
     pub link: Option<Expression>,
 }
 
-#[derive(Default, Debug, Eq, PartialEq)]
+#[derive(Debug, Default, PartialEq, PartialOrd)]
 pub struct Boolean {
     pub is_archived: Option<bool>,
     pub is_starred: Option<bool>,
@@ -179,18 +180,18 @@ pub struct Boolean {
 
 type Range<T> = (Option<T>, Option<T>);
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, PartialEq, PartialOrd)]
 pub enum Expression {
     Words(Vec<String>),
     Regex(String),
 }
 
-#[derive(Default, Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct ReqTasks {
     pub tasks: Vec<ReqTask>,
 }
 
-#[derive(Default, Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct ReqTask {
     // indent #id joint] * TITLE startable- -deadline $weight @assign [joint link
     pub indent: i32,
@@ -198,7 +199,7 @@ pub struct ReqTask {
     pub link: Option<String>,
 }
 
-#[derive(Default, Debug, PartialEq)]
+#[derive(Debug, Default, PartialEq)]
 pub struct Attribute {
     pub is_starred: bool,
     pub id: Option<i32>,
@@ -208,7 +209,7 @@ pub struct Attribute {
     pub assign: Option<String>,
     pub startable: Option<models::EasyDateTime>,
     pub deadline: Option<models::EasyDateTime>,
-    pub title: Vec<String>,
+    pub title: String,
 }
 
 impl ResCommand {
@@ -284,6 +285,7 @@ impl ReqUser {
         Ok(ResUser::Info {
             since: since,
             executed: executed,
+            tz: user.tz,
         })
     }
 }
@@ -538,8 +540,11 @@ impl ReqTasks {
                     target: tgt as i32,
                 });
             }
-            for (tgt, _) in iter.clone()
-            .filter(|(_, _t)| _t.attribute.joint_tail == t.attribute.joint_head) {
+            for (tgt, _) in iter.clone().filter(|(_, _t)| {
+                if let (Some(tail), Some(head)) = (&_t.attribute.joint_tail, &t.attribute.joint_head) {
+                    tail == head
+                } else { false }
+            }) {
                 tmp_arrows.push(models::Arrow {
                     source: src as i32,
                     target: tgt as i32,
@@ -558,7 +563,7 @@ impl ReqTasks {
             }
             tmp_tasks.push(TmpTask {
                 id: t.attribute.id,
-                title: t.attribute.title.join(" "),
+                title: t.attribute.title,
                 assign: t.attribute.assign,
                 is_starred: t.attribute.is_starred,
                 startable: startable,

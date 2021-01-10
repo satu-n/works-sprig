@@ -287,6 +287,9 @@ impl Arrows {
         ids
     }
     pub fn has_cycle(&self) -> bool {
+        if self.arrows.is_empty() {
+            return false
+        }
         if self.list(LR::Leaf).is_empty() || self.list(LR::Root).is_empty() {
             return true
         }
@@ -294,18 +297,18 @@ impl Arrows {
     }
 }
 
-#[derive(Default, Debug, Eq, PartialEq)]
+#[derive(Debug, Default, PartialEq, PartialOrd)]
 pub struct EasyDateTime {
     pub date: Option<EasyDate>,
     pub time: Option<EasyTime>,
 }
-#[derive(Default, Debug, Eq, PartialEq)]
+#[derive(Debug, Default, PartialEq, PartialOrd)]
 pub struct EasyDate {
     pub y: Option<i32>,
     pub m: Option<i32>,
     pub d: Option<i32>,
 }
-#[derive(Default, Debug, Eq, PartialEq)]
+#[derive(Debug, Default, PartialEq, PartialOrd)]
 pub struct EasyTime {
     pub h: Option<i32>,
     pub m: Option<i32>,
