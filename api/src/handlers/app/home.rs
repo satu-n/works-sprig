@@ -1,5 +1,5 @@
 use actix_web::{web, HttpResponse};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveTime, Utc};
 use diesel::prelude::*;
 use serde::{Serialize, Deserialize};
 use std::cmp::min;
@@ -8,7 +8,7 @@ use std::collections::HashMap;
 use crate::errors;
 use crate::models::{self, Selectable};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Q {
     pub option: Option<String>,
 }
@@ -16,7 +16,7 @@ pub struct Q {
 #[derive(Serialize)]
 struct ResBody {
     tasks: Vec<models::ResTask>,
-    config: Config,
+    query: Q,
 }
 
 pub async fn home( // FIXME 500 ISE
@@ -27,12 +27,12 @@ pub async fn home( // FIXME 500 ISE
 
     let res_body = web::block(move || {
         let conn = pool.get().unwrap();
-        let config = q.into_inner().config();
-        let res_tasks = config.query(&user, &conn)?;
+        let query = q.into_inner();
+        let res_tasks = query.config().query(&user, &conn)?;
 
         Ok(ResBody {
             tasks: res_tasks,
-            config: config,
+            query: query,
         })
     }).await?;
 
@@ -41,10 +41,10 @@ pub async fn home( // FIXME 500 ISE
 
 #[derive(Serialize)]
 pub enum Config {
-    Archives,
-    Roots,
-    Leaves,
     Home,
+    Leaves,
+    Roots,
+    Archives,
 }
 
 impl Q {
@@ -63,9 +63,8 @@ impl Config {
         user: &models::AuthedUser,
         conn: &models::Conn,
     ) -> Result<Vec<models::ResTask>, errors::ServiceError> {
-        use crate::schema::stripes::dsl::{stripes, owner};
         use crate::schema::tasks::dsl::{tasks, assign, is_archived, is_starred, updated_at};
-        use crate::schema::users::dsl::users;
+        use crate::schema::users::dsl::{users, open, close};
 
         let archives = if let Self::Archives = self { true } else { false };
 
@@ -73,22 +72,25 @@ impl Config {
             .filter(assign.eq(&user.id))
             .filter(is_archived.eq(&archives))
             .inner_join(users)
-            .select(models::ResTask::columns());
+            .select(models::SelTask::columns());
         let res_tasks = if archives {
             _intermediate
             .order((is_starred.desc(), updated_at.desc()))
             .limit(100)
-            .load::<models::ResTask>(conn)?
+            .load::<models::SelTask>(conn)?
+            .into_iter().map(|t| t.to_res()).collect()
         } else {
             let _res_tasks = _intermediate
                 .order(updated_at.desc())
-                .load::<models::ResTask>(conn)?;
+                .load::<models::SelTask>(conn)?
+                .into_iter().map(|t| t.to_res()).collect();
 
             let arrows = models::Arrows::among(&_res_tasks, conn)?;
             let mut sorter = Sorter::new(_res_tasks,
-                stripes
-                .filter(owner.eq(&user.id))
-                .load::<models::Stripe>(conn)?
+                users
+                .find(&user.id)
+                .select((open, close))
+                .first::<(NaiveTime, NaiveTime)>(conn)?
             );
             sorter.exec(arrows.clone());
             self.filter(&mut sorter.tasks, &arrows);
@@ -115,17 +117,17 @@ impl Config {
 struct Sorter {
     now: DateTime<Utc>,
     tasks: Vec<models::ResTask>,
-    stripes: Vec<models::Stripe>,
+    hours: (NaiveTime, NaiveTime),
 }
 
 impl Sorter {
     fn new(
         tasks: Vec<models::ResTask>,
-        stripes: Vec<models::Stripe>,
+        hours: (NaiveTime, NaiveTime)
     ) -> Self { Self {
             now: Utc::now(),
             tasks: tasks,
-            stripes: stripes,
+            hours: hours,
         }
     }
     fn exec(&mut self, arrows: models::Arrows) {

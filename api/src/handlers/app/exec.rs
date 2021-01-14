@@ -14,7 +14,7 @@ pub struct ReqBody {
 #[derive(Serialize)]
 pub struct ResBody {
     tasks: Vec<models::ResTask>,
-    msg: String,
+    info: TasksInfo,
 }
 
 pub async fn exec(
@@ -23,4 +23,11 @@ pub async fn exec(
     pool: web::Data<models::Pool>,
 ) -> Result<HttpResponse, errors::ServiceError> {
     Ok(HttpResponse::Ok().finish())
+}
+
+#[derive(Serialize)]
+struct TasksInfo {
+    count: i32,
+    chain: i32,
+    revert: bool,
 }

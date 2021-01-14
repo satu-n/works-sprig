@@ -1,8 +1,13 @@
-/
+module Page.App.Placeholder exposing (..)
 
 
-indent #id joint] * TITLE startable- -deadline $weight @assign [joint
-link
+placeholder : String
+placeholder =
+    """/
+
+
+indent  #id joint] * TITLE startable- -deadline $weight @assign [joint
+        https://about/this
 
 jump
     step
@@ -16,13 +21,11 @@ $24     expected to take 24 hours
 -/6/    should be done by 6/1 of this year
 
 root
-https://about/root
+    <!-- comment -->
     branch
         leaf1 dependent on leaf0 [joint
-        http://about/leaf1
     branch
         joint] leaf0
-        http://about/leaf0
 
 write               read: alphabet inherits the current time
 2021/06/15T12:30    2021-06-15T12:30
@@ -34,3 +37,4 @@ write               read: alphabet inherits the current time
 :30                 YYYY-MM-DDThh:30
 
 /       command help
+"""

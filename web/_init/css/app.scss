@@ -1,0 +1,13 @@
+@use "univ";
+
+$val: 300px;
+
+.block {
+    background-color: aqua;
+    &__element {
+        width: $val;
+        &--modifier {
+            font-size: large;
+        }
+    }
+}

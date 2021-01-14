@@ -1,31 +1,33 @@
-#container {
+/* TODO tab-size: 4 */
+
+.univ {
     display: flex;
     flex-direction: row-reverse;
     justify-content: flex-end;
 }
 
-#div0 {
+.pre-app {
     padding-top: 100px;
 }
 
-#div1 {
-    display: flex;
-    flex-direction: column-reverse;
-    text-align: center;
-}
-
-.title {
-    font-size: xx-large;
-}
-
-div {
+.pre-app div {
     padding: 5px;
 }
 
-input {
+.pre-app input {
     font-size: large;
 }
 
-button {
+.pre-app button {
     font-size: large;
+}
+
+.pre-app__title {
+    font-size: xx-large;
+}
+
+.something-graphical {
+    display: flex;
+    flex-direction: column-reverse;
+    text-align: center;
 }

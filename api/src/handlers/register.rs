@@ -1,4 +1,5 @@
 use actix_web::{web, HttpResponse};
+use chrono::NaiveTime;
 use diesel::prelude::*;
 use serde::Deserialize;
 
@@ -52,6 +53,8 @@ struct NewUser {
     email: String,
     hash: String,
     name: String,
+    open: NaiveTime,
+    close: NaiveTime,
 }
 
 #[derive(AsChangeset)]
@@ -67,6 +70,8 @@ impl ReqBody {
             email: self.email.to_owned(),
             hash: utils::hash(&self.password)?,
             name: self.email.to_owned(),
+            open: NaiveTime::from_hms(9, 0, 0),
+            close: NaiveTime::from_hms(15, 0, 0),
         })
     }
     fn to_alt(&self, conn: &models::Conn) -> Result<AltUser, errors::ServiceError> {
@@ -85,8 +90,8 @@ impl ReqBody {
                 if chrono::Utc::now() < invitation.expires_at {
                     return Ok(())
                 }
-                return Err(errors::ServiceError::BadRequest("invitation expired".into()))
+                return Err(errors::ServiceError::BadRequest("invitation expired.".into()))
             }
-        Err(errors::ServiceError::BadRequest("invitation invalid".into()))
+        Err(errors::ServiceError::BadRequest("invitation invalid.".into()))
     }
 }

@@ -120,16 +120,18 @@ parser! {
 parser! {
     fn timescale_[Input]()(Input) -> Timescale
     where [ Input: Stream<Token = char> ] {
+        let p = |t: Timescale| string(t.as_str()).map(move |_| t.clone());
         choice((
-            string("Y")  .map(|_| Timescale::Year),
-            string("Q")  .map(|_| Timescale::Quarter),
-            string("M")  .map(|_| Timescale::Month),
-            string("W")  .map(|_| Timescale::Week),
-            string("D")  .map(|_| Timescale::Day),
-            string("6h") .map(|_| Timescale::Hours6),
-            string("h")  .map(|_| Timescale::Hour),
-            string("15m").map(|_| Timescale::Minutes15),
-            string("m")  .map(|_| Timescale::Minute),
+            p(Timescale::Year),
+            p(Timescale::Quarter),
+            p(Timescale::Month),
+            p(Timescale::Week),
+            p(Timescale::Day),
+            p(Timescale::Hours),
+            p(Timescale::Hour),
+            p(Timescale::Minutes),
+            p(Timescale::Minute),
+            p(Timescale::Second),
         ))
     }
 }
@@ -193,6 +195,7 @@ parser! {
         ))
     }
 }
+// TODO enum ConditionItem
 impl std::iter::Extend<Self> for Condition {
     fn extend<T: IntoIterator<Item=Self>>(&mut self, iter: T) {
         for item in iter {
@@ -263,6 +266,7 @@ parser! {
         })
     }
 }
+// TODO enum BooleanItem
 impl std::iter::Extend<Self> for Boolean {
     fn extend<T: IntoIterator<Item=Self>>(&mut self, iter: T) {
         for item in iter {
@@ -364,6 +368,7 @@ impl std::iter::Extend<Indent> for i32 {
         }
     }
 }
+// TODO enum AttributeItem
 impl std::iter::Extend<Self> for Attribute {
     fn extend<T: IntoIterator<Item=Self>>(&mut self, iter: T) {
         for item in iter {
@@ -632,7 +637,7 @@ mod tests {
         let t_11 = timescale_().easy_parse("   15m");
         let t_12 = timescale_().easy_parse("y");
         let t_13 = timescale_().easy_parse("恒河沙");
-        assert_eq!(t_00, Ok((Timescale::Minutes15, "m   etc...")));
+        assert_eq!(t_00, Ok((Timescale::Minutes, "m   etc...")));
         assert!(t_10.is_err());
         assert!(t_11.is_err());
         assert!(t_12.is_err());

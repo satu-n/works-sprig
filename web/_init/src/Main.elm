@@ -4,7 +4,7 @@ import Browser
 import Div.A as Div0
 import Div.B as Div1
 import Html exposing (Html)
-import Html.Attributes exposing (id)
+import Html.Attributes exposing (class)
 
 
 main : Program () Mdl Msg
@@ -36,8 +36,11 @@ init _ =
         ( m1, c1 ) =
             Div1.init
     in
-    ( { div0 = m0, div1 = m1 }
-    , Cmd.batch [ Cmd.map Msg0 c0, Cmd.map Msg1 c1 ]
+    ( Mdl m0 m1
+    , Cmd.batch
+        [ c0 |> Cmd.map Msg0
+        , c1 |> Cmd.map Msg1
+        ]
     )
 
 
@@ -53,19 +56,19 @@ type Msg
 update : Msg -> Mdl -> ( Mdl, Cmd Msg )
 update msg mdl =
     case msg of
-        Msg0 msg_ ->
+        Msg0 msg0 ->
             let
-                ( m, c ) =
-                    Div0.update msg_ mdl.div0
+                ( m0, c0 ) =
+                    Div0.update msg0 mdl.div0
             in
-            ( { mdl | div0 = m }, Cmd.map Msg0 c )
+            ( { mdl | div0 = m0 }, c0 |> Cmd.map Msg0 )
 
-        Msg1 msg_ ->
+        Msg1 msg1 ->
             let
-                ( m, c ) =
-                    Div1.update msg_ mdl.div1
+                ( m1, c1 ) =
+                    Div1.update msg1 mdl.div1
             in
-            ( { mdl | div1 = m }, Cmd.map Msg1 c )
+            ( { mdl | div1 = m1 }, c1 |> Cmd.map Msg1 )
 
 
 
@@ -74,9 +77,9 @@ update msg mdl =
 
 view : Mdl -> Html Msg
 view mdl =
-    Html.div [ id "container" ]
-        [ Html.map Msg0 <| Div0.view mdl.div0
-        , Html.map Msg1 <| Div1.view mdl.div1
+    Html.div [ class "univ" ]
+        [ Div0.view mdl.div0 |> Html.map Msg0
+        , Div1.view mdl.div1 |> Html.map Msg1
         ]
 
 
@@ -87,8 +90,8 @@ view mdl =
 subscriptions : Mdl -> Sub Msg
 subscriptions mdl =
     Sub.batch
-        [ Sub.map Msg0 <| Div0.subscriptions mdl.div0
-        , Sub.map Msg1 <| Div1.subscriptions mdl.div1
+        [ Div0.subscriptions mdl.div0 |> Sub.map Msg0
+        , Div1.subscriptions mdl.div1 |> Sub.map Msg1
         ]
 
 

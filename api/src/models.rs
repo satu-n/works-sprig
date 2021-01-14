@@ -3,8 +3,6 @@ use chrono::{DateTime, NaiveDate, NaiveDateTime, NaiveTime, TimeZone, Utc};
 use chrono_tz::Tz;
 use diesel::prelude::*;
 use diesel::{r2d2::ConnectionManager, PgConnection};
-use diesel::expression::{bound, IntoSql};
-use diesel::sql_types::{Nullable, Float};
 use futures::future::{err, ok, Ready};
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
@@ -18,19 +16,19 @@ pub type Conn = r2d2::PooledConnection<ConnectionManager<PgConnection>>;
 
 // FROM SCHEMA
 
-#[derive(Queryable, Identifiable, Insertable, Clone)]
-#[primary_key(source, target)]
+#[derive(Queryable, Insertable, Clone)]
 pub struct Arrow {
     pub source: i32,
     pub target: i32,
 }
 
-#[derive(Queryable, Identifiable, Insertable, Debug)]
+#[derive(Queryable, Insertable, Debug)]
 pub struct Invitation {
     pub id: uuid::Uuid,
     pub email: String,
     pub expires_at: DateTime<Utc>,
     pub forgot_pw: bool,
+    pub tz: String,
 }
 
 #[derive(Queryable, Identifiable, Insertable)]
@@ -39,14 +37,6 @@ pub struct Permission {
     pub subject: i32,
     pub object: i32,
     pub edit: bool,
-}
-
-#[derive(Queryable, Identifiable)]
-pub struct Stripe {
-    pub id: i32,
-    pub open: NaiveTime,
-    pub close: NaiveTime,
-    pub owner: i32,
 }
 
 #[derive(Queryable, Identifiable)]
@@ -71,6 +61,8 @@ pub struct User {
     pub hash: String,
     pub name: String,
     pub timescale: String,
+    pub open: NaiveTime,
+    pub close: NaiveTime,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -100,7 +92,7 @@ impl FromRequest for AuthedUser {
     }
 }
 
-#[derive(Queryable, Serialize)]
+#[derive(Serialize, Default)]
 pub struct ResTask {
     pub id: i32,
     pub title: String,
@@ -112,6 +104,26 @@ pub struct ResTask {
     pub priority: Option<f32>,
     pub weight: Option<f32>,
     pub link: Option<String>,
+    pub stripes: Vec<Stripe>,
+}
+
+#[derive(Serialize)]
+pub struct Stripe {
+    pub l: DateTime<Utc>,
+    pub r: DateTime<Utc>,
+}
+
+#[derive(Queryable)]
+pub struct SelTask {
+    pub id: i32,
+    pub title: String,
+    pub assign: String,
+    pub is_archived: bool,
+    pub is_starred: bool,
+    pub startable: Option<DateTime<Utc>>,
+    pub deadline: Option<DateTime<Utc>>,
+    pub weight: Option<f32>,
+    pub link: Option<String>,
 }
 
 pub trait Selectable {
@@ -119,7 +131,7 @@ pub trait Selectable {
     fn columns() -> Self::Columns;
 }
 
-impl Selectable for ResTask {
+impl Selectable for SelTask {
     type Columns = (
         tasks::id,
         tasks::title,
@@ -128,7 +140,6 @@ impl Selectable for ResTask {
         tasks::is_starred,
         tasks::startable,
         tasks::deadline,
-        bound::Bound<Nullable<Float>, Option<f32>>,
         tasks::weight,
         tasks::link,
     );
@@ -140,10 +151,27 @@ impl Selectable for ResTask {
         tasks::is_starred,
         tasks::startable,
         tasks::deadline,
-        None::<f32>.into_sql::<Nullable<Float>>(),
         tasks::weight,
         tasks::link,
     )}
+}
+
+impl SelTask {
+    pub fn to_res(self) -> ResTask {
+        ResTask {
+            id: self.id,
+            title: self.title,
+            assign: self.assign,
+            is_archived: self.is_archived,
+            is_starred: self.is_starred,
+            startable: self.startable,
+            deadline: self.deadline,
+            priority: None,
+            weight: self.weight,
+            link: self.link,
+            stripes: Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone)]

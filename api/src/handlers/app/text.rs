@@ -1,7 +1,6 @@
 use actix_web::{web, HttpResponse};
 use chrono::{DateTime, Utc};
 use chrono_tz::Tz;
-use derive_more::Display;
 use diesel::prelude::*;
 use regex::Regex;
 use serde::{Serialize, Deserialize};
@@ -40,6 +39,7 @@ pub async fn text(
         match req {
             Req::Command(cmd) => {
                 let res_command = match cmd {
+                    // TODO /alias
                     ReqCommand::Help              => ResCommand::help(),
                     ReqCommand::User(request)     => request.handle(&user, &conn)?,
                     ReqCommand::Search(condition) => condition.extract(&user, &conn)?,
@@ -123,31 +123,23 @@ enum ResUser {
 #[derive(Serialize)]
 enum ResModify {
     Email(String),
-    Password,
+    Password(()),
     Name(String),
-    Timescale(Timescale),
+    Timescale(String),
 }
 
-#[derive(Debug, PartialEq, Display, Serialize)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Timescale {
-    #[display(fmt = "Y")]
     Year,
-    #[display(fmt = "Q")]
     Quarter,
-    #[display(fmt = "M")]
     Month,
-    #[display(fmt = "W")]
     Week,
-    #[display(fmt = "D")]
     Day,
-    #[display(fmt = "6h")]
-    Hours6,
-    #[display(fmt = "h")]
+    Hours,
     Hour,
-    #[display(fmt = "15m")]
-    Minutes15,
-    #[display(fmt = "m")]
+    Minutes,
     Minute,
+    Second,
 }
 
 #[derive(Serialize)]
@@ -159,6 +151,9 @@ struct TasksInfo {
 #[derive(Debug, Default, PartialEq, PartialOrd)]
 pub struct Condition {
     pub boolean: Boolean,
+    // TODO limit 333<#<777 use to !is_archived
+    // TODO impl 333<!<777 for critical path
+    // show critical Path between 2 selected tasks
     pub context: Range<i32>,
     pub weight: Range<f32>,
     pub startable: Range<models::EasyDateTime>,
@@ -215,6 +210,7 @@ pub struct Attribute {
 impl ResCommand {
     fn help() -> Self {
         Self::Help(String::from(
+            // TODO search examples
             "\
             <!-- Select one, remove <!-- prefix, configure it, and send. -->\n\
             <!-- / <!-- this help -->\n\
@@ -225,7 +221,6 @@ impl ResCommand {
             <!-- /u -n {name} <!-- modify user name -->\n\
             <!-- /u -t {timescale} <!-- modify user default timescale -->\n\
             <!-- /s {conditions} <!-- search for tasks by conditions -->\n\
-            <!-- /s {conditions} <!-- TODO search examples -->\n\
             "
         ))
     }
@@ -243,6 +238,7 @@ impl ResCommand {
                     priority: None,
                     weight: None,
                     link: None, // TODO tutorial external
+                    stripes: Vec::new(),
                 },
             ],
         }
@@ -318,7 +314,7 @@ impl ReqModify {
             Self::Password(password_set) => {
                 let hash = password_set.verify(user, conn)?;
                 alt_user.hash = Some(hash);
-                ResModify::Password
+                ResModify::Password(())
             },
             Self::Name(s) => {
                 if select(exists(users.filter(name.eq(&s)))).get_result(conn)? {
@@ -331,8 +327,8 @@ impl ReqModify {
                 ResModify::Name(s)
             },
             Self::Timescale(timescale) => {
-                alt_user.timescale = Some(format!("{}", timescale));
-                ResModify::Timescale(timescale)
+                alt_user.timescale = Some(timescale.as_str().into());
+                ResModify::Timescale(timescale.as_str().into())
             },
         };
         diesel::update(user).set(&alt_user).execute(conn)?;
@@ -371,6 +367,23 @@ impl PasswordSet {
     }
 }
 
+impl Timescale {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Year => "Y",
+            Self::Quarter => "Q",
+            Self::Month => "M",
+            Self::Week => "W",
+            Self::Day => "D",
+            Self::Hours => "6h",
+            Self::Hour => "h",
+            Self::Minutes => "15m",
+            Self::Minute => "m",
+            Self::Second => "s",
+        }
+    }
+}
+
 impl Condition {
     fn extract(&self,
         user: &models::AuthedUser,
@@ -405,7 +418,7 @@ impl Condition {
             .filter(object.eq(assign))
         ))
         .inner_join(users)
-        .select(models::ResTask::columns())
+        .select(models::SelTask::columns())
         .into_boxed();
 
         if let Some(b) = &self.boolean.is_archived {
@@ -472,7 +485,8 @@ impl Condition {
         Ok(query
             .order((is_starred.desc(), updated_at.desc()))
             .limit(100) // TODO limit extraction ?
-            .load::<models::ResTask>(conn)?
+            .load::<models::SelTask>(conn)?
+            .into_iter().map(|t| t.to_res()).collect()
         )
     }
     fn filter_regex(&self,

@@ -1,3 +1,4 @@
+use chrono_tz::Tz;
 use sparkpost::transmission;
 
 use crate::errors;
@@ -25,13 +26,15 @@ pub fn send(invitation: &models::Invitation) -> Result<(), errors::ServiceError>
         Your {} key is: <br>
         <span style=\"font-size: x-large; font-weight: bold;\">{}</span> <br>
         The key expires on: <br>
-        <span style=\"font-weight: bold;\">{}</span> <br>
+        <span style=\"font-weight: bold;\">{} in {}</span> <br>
         ",
         if invitation.forgot_pw {"reset"} else {"register"},
         invitation.id,
         invitation.expires_at
-            .format("%Y-%m-%dT%H:%M:%S%:z") // RFC 3339
-            .to_string()
+            .with_timezone(&invitation.tz.parse::<Tz>().unwrap())
+            .format("%Y/%m/%d %a %H:%M") // RFC 3339
+            .to_string(),
+        invitation.tz,
     );
     email
         .add_recipient(recipient)

@@ -31,7 +31,10 @@ type alias Req =
 
 init : ( Mdl, Cmd Msg )
 init =
-    ( { req = { email = "", password = "", tz = "" }, msg = "", forgot_pw = False }
+    ( { req = { email = "", password = "", tz = "" }
+      , msg = ""
+      , forgot_pw = False
+      }
     , Task.perform SetTz Time.getZoneName
     )
 
@@ -42,14 +45,14 @@ init =
 
 type Msg
     = Goto P.Page
+    | SetTz Time.ZoneName
     | FromU FromU
     | FromS FromS
-    | SetTz Time.ZoneName
 
 
 type FromU
     = Login
-    | NoAccount
+    | NewAccount
     | ForgotPW
     | EditEmail String
     | EditPassWord String
@@ -62,12 +65,33 @@ type FromS
 update : Msg -> Mdl -> ( Mdl, Cmd Msg )
 update msg mdl =
     case msg of
+        Goto _ ->
+            ( mdl, Cmd.none )
+
+        SetTz zoneName ->
+            let
+                req =
+                    mdl.req
+
+                newReq =
+                    { req
+                        | tz =
+                            case zoneName of
+                                Time.Name name ->
+                                    name
+
+                                _ ->
+                                    "UTC"
+                    }
+            in
+            ( { mdl | req = newReq }, Cmd.none )
+
         FromU fromU ->
             case fromU of
                 Login ->
-                    ( mdl, U.post_ EP.Auth (encReq mdl.req) (FromS << LoggedIn) )
+                    ( mdl, U.post_ EP.Auth (enc mdl.req) (FromS << LoggedIn) )
 
-                NoAccount ->
+                NewAccount ->
                     ( { mdl | forgot_pw = False }, U.cmd Goto P.Invite )
 
                 ForgotPW ->
@@ -101,30 +125,9 @@ update msg mdl =
                 LoggedIn (Ok _) ->
                     ( mdl, U.cmd Goto P.LP )
 
-        SetTz zoneName ->
-            let
-                req =
-                    mdl.req
 
-                newReq =
-                    { req
-                        | tz =
-                            case zoneName of
-                                Time.Name name ->
-                                    name
-
-                                _ ->
-                                    "UTC"
-                    }
-            in
-            ( { mdl | req = newReq }, Cmd.none )
-
-        _ ->
-            ( mdl, Cmd.none )
-
-
-encReq : Req -> Encode.Value
-encReq req =
+enc : Req -> Encode.Value
+enc req =
     Encode.object
         [ ( "email", Encode.string req.email )
         , ( "password", Encode.string req.password )
@@ -138,16 +141,16 @@ encReq req =
 
 view : Mdl -> Html Msg
 view mdl =
-    Html.map FromU <|
-        div []
-            [ div [ class "title" ] [ text "Login" ]
-            , div [] [ U.input "email" "Email" mdl.req.email EditEmail ]
-            , div [] [ U.input "password" "Password" mdl.req.password EditPassWord ]
-            , div [] [ button [ onClick Login ] [ text "Login" ] ]
-            , div [] [ button [ onClick NoAccount ] [ text "No Account" ] ]
-            , div [] [ button [ onClick ForgotPW ] [ text "Forgot Password" ] ]
-            , div [] [ text mdl.msg ]
-            ]
+    div [ class "pre-app" ]
+        [ div [ class "pre-app__title" ] [ text "Login" ]
+        , div [] [ U.input "email" "Email" mdl.req.email EditEmail ]
+        , div [] [ U.input "password" "Password" mdl.req.password EditPassWord ]
+        , div [] [ button [ onClick Login ] [ text "Login" ] ]
+        , div [] [ button [ onClick NewAccount ] [ text "New Account" ] ]
+        , div [] [ button [ onClick ForgotPW ] [ text "Forgot Password" ] ]
+        , div [] [ text mdl.msg ]
+        ]
+        |> Html.map FromU
 
 
 

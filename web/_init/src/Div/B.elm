@@ -10,7 +10,7 @@ module Div.B exposing (..)
 
 import Browser.Events as E
 import Html exposing (..)
-import Html.Attributes exposing (height, id, style, width)
+import Html.Attributes exposing (class, height, style, width)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import WebGL
@@ -59,7 +59,7 @@ subscriptions _ =
 
 view : Mdl -> Html Msg
 view angle =
-    div [ id "div1" ]
+    div [ class "something-graphical" ]
         [ text "https://elm-lang.org/examples/cube"
         , WebGL.toHtml
             [ width 400

@@ -1,5 +1,6 @@
 module Page.Register exposing (..)
 
+import Bool.Extra as BX
 import EndPoint as EP
 import Html exposing (..)
 import Html.Attributes exposing (class)
@@ -62,6 +63,9 @@ type FromS
 update : Msg -> Mdl -> ( Mdl, Cmd Msg )
 update msg mdl =
     case msg of
+        Goto _ ->
+            ( mdl, Cmd.none )
+
         FromU fromU ->
             case fromU of
                 RegisterMe ->
@@ -70,7 +74,7 @@ update msg mdl =
                             ( { mdl | msg = fault }, Cmd.none )
 
                         _ ->
-                            ( mdl, U.post_ EP.Register (encReq mdl.req) (FromS << RegisteredYou) )
+                            ( mdl, U.post_ EP.Register (enc mdl.req) (FromS << RegisteredYou) )
 
                 EditKey s ->
                     let
@@ -103,36 +107,32 @@ update msg mdl =
                 RegisteredYou (Ok _) ->
                     ( mdl, U.cmd Goto P.LP )
 
-        _ ->
-            ( mdl, Cmd.none )
-
 
 faultOf : Mdl -> Maybe String
 faultOf mdl =
-    if String.length mdl.req.key /= 36 then
-        Just
-            ("Enter the "
-                ++ (if mdl.req.reset_pw then
-                        "reset"
-
-                    else
-                        "register"
-                   )
-                ++ " key correctly"
+    let
+        passwordLen =
+            8
+    in
+    [ mdl.req.password /= mdl.confirmation
+    , String.length mdl.req.password < passwordLen
+    , String.length mdl.req.key /= 36
+    ]
+        |> U.overwrite Nothing
+            ([ "Password does not match confirmation."
+             , [ "Password should be at least", U.int passwordLen, "length." ] |> String.join " "
+             , [ "Enter the"
+               , mdl.req.reset_pw |> BX.ifElse "reset" "register"
+               , "key correctly."
+               ]
+                |> String.join " "
+             ]
+                |> List.map Just
             )
 
-    else if String.length mdl.req.password < 8 then
-        Just "Password should be at least 8 length"
 
-    else if mdl.req.password /= mdl.confirmation then
-        Just "Password mismatched"
-
-    else
-        Nothing
-
-
-encReq : Req -> Encode.Value
-encReq req =
+enc : Req -> Encode.Value
+enc req =
     Encode.object
         [ ( "key", Encode.string req.key )
         , ( "email", Encode.string req.email )
@@ -147,43 +147,15 @@ encReq req =
 
 view : Mdl -> Html Msg
 view mdl =
-    Html.map FromU <|
-        div []
-            [ div [ class "title" ]
-                [ text
-                    (if mdl.req.reset_pw then
-                        "Reset Password"
-
-                     else
-                        "Register"
-                    )
-                ]
-            , div []
-                [ U.input "password"
-                    (if mdl.req.reset_pw then
-                        "Reset Key"
-
-                     else
-                        "Register Key"
-                    )
-                    mdl.req.key
-                    EditKey
-                ]
-            , div [] [ U.input "password" "New Password" mdl.req.password EditPassWord ]
-            , div [] [ U.input "password" "Confirmation" mdl.confirmation EditConfirmation ]
-            , div []
-                [ button [ onClick RegisterMe ]
-                    [ text
-                        (if mdl.req.reset_pw then
-                            "Reset Password"
-
-                         else
-                            "Register"
-                        )
-                    ]
-                ]
-            , div [] [ text mdl.msg ]
-            ]
+    div [ class "pre-app" ]
+        [ div [ class "pre-app__title" ] [ mdl.req.reset_pw |> BX.ifElse "Reset Password" "Register" |> text ]
+        , div [] [ U.input "password" (mdl.req.reset_pw |> BX.ifElse "Reset Key" "Register Key") mdl.req.key EditKey ]
+        , div [] [ U.input "password" "New Password" mdl.req.password EditPassWord ]
+        , div [] [ U.input "password" "Confirmation" mdl.confirmation EditConfirmation ]
+        , div [] [ button [ onClick RegisterMe ] [ mdl.req.reset_pw |> BX.ifElse "Reset Password" "Register" |> text ] ]
+        , div [] [ text mdl.msg ]
+        ]
+        |> Html.map FromU
 
 
 

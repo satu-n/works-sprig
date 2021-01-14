@@ -2,9 +2,8 @@
 
 __Under development:__
 
-- [ ] api
-- [ ] web/PC
-- [ ] web/SP
+- [ ] Keyboard-oriented mode
+- [ ] Touch-oriented mode
 
 <!-- EXTERNAL LINK -->
 [demo]: --TODO
@@ -14,7 +13,8 @@ __Under development:__
 [tips]: https://github.com/satu-n/tips
 
 <!-- INTERNAL LINK -->
-[placeholder]: web/_init/src/Page/App/placeholder.txt
+<!-- TODO remove _init nest -->
+[placeholder]: web/_init/src/Page/App/Placeholder.elm
 
 ## What's this
 
@@ -32,6 +32,12 @@ Sprig the Task Breaker ⚡
 * 
 * 
 
+<!-- ### Zen of Sprig
+
+* __Focus on the top task.__
+* __Break it down into processable units.__
+* __List up, and enter as is.__ -->
+
 ## How to use
 
 ### Input syntax
@@ -39,7 +45,7 @@ Sprig the Task Breaker ⚡
 See input area [placeholder][placeholder].
 
 ### Shortcuts
-
+<!-- TODO timescale 1-9 -->
 
 | Icon | Shortcut | Operation |
 | :---: | ---: |---|
@@ -49,21 +55,20 @@ See input area [placeholder][placeholder].
 |  | `Ctrl` + `Enter` | submit |
 |  | `Ctrl` + `↑` | minimize input area |
 |  | `Esc` | blur input area |
-|  |  | __CURSOR__ |
+|  |  | __NAVIGATE__ |
 | <img src="web/images/cmd_jk_normal.png" width="24px" align="center"> | `J` `K` | down & up cursor |
-| <img src="web/images/cmd_x_normal.png" width="24px" align="center"> | `X` | select task at cursor |
-| <img src="web/images/cmd_s_normal.png" width="24px" align="center"> | `S` | Star task at cursor |
-| <img src="web/images/cmd_f_normal.png" width="24px" align="center"> | `F` | Focus task at cursor: view directly related tasks |
-| <img src="web/images/cmd_u_normal.png" width="24px" align="center"> | `U` | open URL link of task at cursor |
-|  |  | __SELECTION__ |
+| <img src="web/images/cmd_x_normal.png" width="24px" align="center"> | `X` | select item at cursor |
+| <img src="web/images/cmd_u_normal.png" width="24px" align="center"> | `U` | open URL link of item at cursor |
 | <img src="web/images/cmd_i_normal.png" width="24px" align="center"> | `I` | Invert selection |
-| <img src="web/images/cmd_e_normal.png" width="24px" align="center"> | `E` | Execute and archive selected tasks |
-| <img src="web/images/cmd_e_normal.png" width="24px" align="center"> | `Shift` + `E` | revert selected tasks |
-| <img src="web/images/cmd_c_normal.png" width="24px" align="center"> | `C` | Clone selected tasks to input area |
-| <img src="web/images/cmd_p_normal.png" width="24px" align="center"> | `P` | show critical Path between 2 selected tasks  |
+|  |  | __EDIT__ |
+| <img src="web/images/cmd_s_normal.png" width="24px" align="center"> | `S` | Star item at cursor |
+| <img src="web/images/cmd_e_normal.png" width="24px" align="center"> | `E` | Execute selected items to archives |
+| <img src="web/images/cmd_e_normal.png" width="24px" align="center"> | `Shift` + `E` | revert selected items to home |
+| <img src="web/images/cmd_c_normal.png" width="24px" align="center"> | `C` | Clone selected items to input area |
 |  |  | __VIEW__ |
 | <img src="web/images/cmd_5_normal.png" width="24px" align="center"> | `1` .. `5` | time scale |
 | <img src="web/images/cmd_wo_normal.png" width="24px" align="center"> | `W` `O` | time shift |
+| <img src="web/images/cmd_f_normal.png" width="24px" align="center"> | `F` | Focus item at cursor: view directly related items |
 | <img src="web/images/cmd_a_normal.png" width="24px" align="center"> | `A` | Archives |
 | <img src="web/images/cmd_r_normal.png" width="24px" align="center"> | `R` | Roots, no successor |
 | <img src="web/images/cmd_l_normal.png" width="24px" align="center"> | `L` | Leaves, no predecessor |

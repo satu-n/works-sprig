@@ -13,7 +13,7 @@ pub struct ReqBody {
 #[derive(Serialize)]
 pub struct ResBody {
     text: String,
-    msg: String,
+    info: TasksInfo,
 }
 
 pub async fn clone(
@@ -22,4 +22,9 @@ pub async fn clone(
     pool: web::Data<models::Pool>,
 ) -> Result<HttpResponse, errors::ServiceError> {
     Ok(HttpResponse::Ok().finish())
+}
+
+#[derive(Serialize)]
+struct TasksInfo {
+    count: i32,
 }

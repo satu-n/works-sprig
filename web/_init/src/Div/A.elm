@@ -1,7 +1,6 @@
 module Div.A exposing (..)
 
 import Html exposing (Html)
-import Html.Attributes exposing (id)
 import Page as P
 import Page.App.App as App
 import Page.Invite as Invite
@@ -52,7 +51,7 @@ update : Msg -> Mdl -> ( Mdl, Cmd Msg )
 update msg mdl =
     case findGoto msg of
         Just page ->
-            goto page mdl
+            goto mdl page
 
         _ ->
             case ( msg, mdl ) of
@@ -81,26 +80,25 @@ update msg mdl =
 
 view : Mdl -> Html Msg
 view mdl =
-    Html.div [ id "div0" ]
-        [ case mdl of
-            LPMdl m ->
-                LP.view m |> Html.map LPMsg
+    case mdl of
+        LPMdl m ->
+            LP.view m |> Html.map LPMsg
 
-            InviteMdl m ->
-                Invite.view m |> Html.map InviteMsg
+        InviteMdl m ->
+            Invite.view m |> Html.map InviteMsg
 
-            RegisterMdl m ->
-                Register.view m |> Html.map RegisterMsg
+        RegisterMdl m ->
+            Register.view m |> Html.map RegisterMsg
 
-            LoginMdl m ->
-                Login.view m |> Html.map LoginMsg
+        LoginMdl m ->
+            Login.view m |> Html.map LoginMsg
 
-            AppMdl_ (AppMdl m) ->
-                App.view m |> Html.map (AppMsg_ << AppMsg)
-        ]
+        AppMdl_ (AppMdl m) ->
+            App.view m |> Html.map (AppMsg_ << AppMsg)
 
 
 
+-- ]
 -- SUBSCRIPTIONS
 
 
@@ -149,8 +147,8 @@ findGoto msg =
             Nothing
 
 
-goto : P.Page -> Mdl -> ( Mdl, Cmd Msg )
-goto page mdl =
+goto : Mdl -> P.Page -> ( Mdl, Cmd Msg )
+goto mdl page =
     case page of
         P.LP ->
             LP.init |> U.map LPMdl LPMsg

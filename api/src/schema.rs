@@ -11,6 +11,7 @@ table! {
         email -> Varchar,
         expires_at -> Timestamptz,
         forgot_pw -> Bool,
+        tz -> Varchar,
     }
 }
 
@@ -19,15 +20,6 @@ table! {
         subject -> Int4,
         object -> Int4,
         edit -> Bool,
-    }
-}
-
-table! {
-    stripes (id) {
-        id -> Int4,
-        open -> Time,
-        close -> Time,
-        owner -> Int4,
     }
 }
 
@@ -54,28 +46,19 @@ table! {
         hash -> Varchar,
         name -> Varchar,
         timescale -> Varchar,
+        open -> Time,
+        close -> Time,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
 }
 
-table! {
-    utcs (id) {
-        id -> Int4,
-        sup -> Timestamptz,
-        inf -> Timestamptz,
-    }
-}
-
-joinable!(stripes -> users (owner));
 joinable!(tasks -> users (assign));
 
 allow_tables_to_appear_in_same_query!(
     arrows,
     invitations,
     permissions,
-    stripes,
     tasks,
     users,
-    utcs,
 );

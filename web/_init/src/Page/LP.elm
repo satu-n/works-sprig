@@ -26,25 +26,29 @@ type alias Mdl =
 type alias User =
     { name : String
     , zone : Time.Zone
+    , timescale : U.Timescale
     }
 
 
 type alias Res =
     { name : String
     , tz : String
+    , timescale : String
     }
 
 
 init : ( Mdl, Cmd Msg )
 init =
-    ( { user = { name = "", zone = Time.utc }, msg = "" }
+    ( { user = { name = "", zone = Time.utc, timescale = U.timescale "D" }
+      , msg = ""
+      }
     , getMe
     )
 
 
 getMe : Cmd Msg
 getMe =
-    U.get EP.Auth (FromS << GotYou) decRes
+    U.get EP.Auth [] (FromS << GotYou) decRes
 
 
 decRes : Decoder Res
@@ -52,6 +56,7 @@ decRes =
     Decode.succeed Res
         |> required "name" string
         |> required "tz" string
+        |> required "timescale" string
 
 
 
@@ -70,11 +75,15 @@ type FromS
 update : Msg -> Mdl -> ( Mdl, Cmd Msg )
 update msg mdl =
     case msg of
+        Goto _ ->
+            ( mdl, Cmd.none )
+
         FromS fromS ->
             case fromS of
                 GotYou (Err e) ->
                     case U.errCode e of
                         Just 401 ->
+                            -- Unauthorized
                             ( mdl, U.cmd Goto P.Login )
 
                         _ ->
@@ -85,15 +94,14 @@ update msg mdl =
                         | user =
                             { name = res.name
                             , zone =
-                                Maybe.withDefault Time.utc
-                                    (Dict.get res.tz TimeZone.zones |> Maybe.map (\f -> f ()))
+                                Dict.get res.tz TimeZone.zones
+                                    |> Maybe.map (\f -> f ())
+                                    |> Maybe.withDefault Time.utc
+                            , timescale = U.timescale res.timescale
                             }
                       }
                     , U.cmd Goto (P.App_ P.App)
                     )
-
-        _ ->
-            ( mdl, Cmd.none )
 
 
 
@@ -102,8 +110,8 @@ update msg mdl =
 
 view : Mdl -> Html Msg
 view mdl =
-    div []
-        [ div [ class "title" ] [ text "LP" ]
+    div [ class "pre-app" ]
+        [ div [ class "pre-app__title" ] [ text "LP" ]
         , div [] [ text mdl.msg ]
         ]
 

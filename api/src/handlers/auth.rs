@@ -19,6 +19,7 @@ pub struct ReqBody {
 struct ResBody {
     name: String,
     tz: Tz,
+    timescale: String,
 }
 
 pub async fn login(
@@ -84,6 +85,7 @@ impl models::AuthedUser {
         Ok(ResBody {
             name: user.name,
             tz: self.tz,
+            timescale: user.timescale,
         })
     }
 }

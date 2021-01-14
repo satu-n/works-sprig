@@ -1,4 +1,5 @@
 use actix_web::{web, HttpResponse};
+use chrono_tz::Tz;
 use diesel::prelude::*;
 use serde::Deserialize;
 
@@ -9,6 +10,7 @@ use crate::models;
 pub struct ReqBody {
     email: String,
     forgot_pw: bool,
+    tz: Tz,
 }
 
 pub async fn invite(
@@ -20,7 +22,7 @@ pub async fn invite(
         let conn = pool.get().unwrap();
         let invitation: models::Invitation = req.into_inner().accept(&conn)?;
         dbg!(&invitation);
-        super::email::send(&invitation)
+        super::_email::send(&invitation)
     }).await?;
 
     Ok(HttpResponse::Ok().finish())
@@ -36,10 +38,10 @@ impl ReqBody {
 
         let user_exists: bool = select(exists(users.filter(email.eq(&self.email)))).get_result(conn)?;
         if user_exists && !self.forgot_pw {
-            return Err(errors::ServiceError::BadRequest("user already exists".into()))
+            return Err(errors::ServiceError::BadRequest("user already exists.".into()))
         }
         if !user_exists && self.forgot_pw {
-            return Err(errors::ServiceError::BadRequest("user does not exist yet".into()))
+            return Err(errors::ServiceError::BadRequest("user does not exist yet.".into()))
         }
         let invitation: models::Invitation = self.into();
 
@@ -54,6 +56,7 @@ impl From<ReqBody> for models::Invitation {
             email: req.email,
             expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
             forgot_pw: req.forgot_pw,
+            tz: req.tz.to_string(),
         }
     }
 }

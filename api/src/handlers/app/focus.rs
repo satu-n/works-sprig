@@ -7,7 +7,9 @@ use crate::models;
 
 #[derive(Serialize)]
 pub struct ResBody {
-    tasks: Vec<models::ResTask>,
+    task: models::ResTask,
+    pred: Vec<models::ResTask>,
+    succ: Vec<models::ResTask>,
 }
 
 pub async fn focus(
