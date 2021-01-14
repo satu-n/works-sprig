@@ -13,8 +13,7 @@ __Under development:__
 [tips]: https://github.com/satu-n/tips
 
 <!-- INTERNAL LINK -->
-<!-- TODO remove _init nest -->
-[placeholder]: web/_init/src/Page/App/Placeholder.elm
+[placeholder]: web/src/Page/App/Placeholder.elm
 
 ## What's this
 
