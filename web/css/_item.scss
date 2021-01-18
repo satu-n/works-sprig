@@ -1,0 +1,105 @@
+@use 'app';
+@use 'univ';
+
+$color__attention: #E1F4C9;
+$color__base: #EEF4F2;
+$color__base--selected: #C2DBFF;
+$color__border: #DDE5E5;
+$color__cursor: #769BA9;
+$color__font: app.$color__font;
+$height__item: 40px;
+$width__assign: 96px;
+$width__cursor: 3px;
+$width__datetime: 80px;
+$width__float: 64px;
+$width__symbol: 32px;
+$width__title: 253px;
+$font-size__detail: 1.5rem;
+
+.item {
+    @include univ.a-row($height: $height__item);
+    border-bottom: $color__border solid 1px;
+    background-color: $color__base;
+
+    &--selected {
+        background-color: $color__base--selected;
+    }
+    @mixin td($flex-grow: 0, $width: 0) {
+        @include univ.a-column($flex-grow, $width);
+        flex-direction: row;
+        @include univ.center();
+        overflow: hidden;
+        white-space: nowrap;
+    }
+    &__cursor {
+        @include td($width : $width__cursor);
+
+        &--spot {
+            background-color: $color__cursor;
+        }
+    }
+    &__select {
+        @include td($width : $width__symbol);
+    }
+    &__star {
+        @include td($width : $width__symbol);
+    }
+    &__title {
+        @include td($width : $width__title);
+        justify-content: left;
+
+        span {
+            font-size: $font-size__detail;
+        }
+        a {
+            text-decoration: none;
+        }
+    }
+    &__startable {
+        @include td($width : $width__datetime);
+
+        &:not(&--header) {
+            font-size: $font-size__detail;
+        }
+    }
+    &__bar {
+        @include td($flex-grow: 1);
+        flex-shrink: app.$combat-power__freeza;
+        justify-content: left;
+
+        &:not(&--header) {
+            font-family: 'Courier New';
+            font-weight: bold;
+        }
+    }
+    &__deadline {
+        @include td($width : $width__datetime);
+
+        &:not(&--header) {
+            font-size: $font-size__detail;
+        }
+        &--overdue {
+            background-color: $color__attention;
+        }
+    }
+    &__priority {
+        @include td($width : $width__float);
+        font-size: $font-size__detail;
+
+        &--high {
+            background-color: $color__attention;
+        }
+    }
+    &__weight {
+        @include td($width : $width__float);
+        font-size: $font-size__detail;
+    }
+    &__assign {
+        @include td($width : $width__assign);
+        text-align: center;
+
+        span {
+            font-size: $font-size__detail;
+        }
+    }
+}

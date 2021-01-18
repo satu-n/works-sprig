@@ -1,0 +1,29 @@
+@use 'univ';
+@use 'item';
+@use 'app';
+
+$color__input: item.$color__base--selected;
+$color__btn: app.$color__scroll;
+
+.pre-app {
+    padding-top: 100px;
+
+    &__title {
+        font-size: 4rem;
+    }
+    div {
+        padding: 5px;
+    }
+    input {
+        @include univ.input($width: 256px, $height: 32px);
+        font-size: 2rem;
+        padding: 6px;
+        background-color: $color__input;
+
+    }
+    button {
+        @include univ.btn($width: 256px, $height: 32px);
+        font-size: 2rem;
+        background-color: $color__btn;
+    }
+}

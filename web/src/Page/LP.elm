@@ -111,7 +111,7 @@ update msg mdl =
 view : Mdl -> Html Msg
 view mdl =
     div [ class "pre-app" ]
-        [ div [ class "pre-app__title" ] [ text "LP" ]
+        [ h1 [ class "pre-app__title" ] [ text "LP" ]
         , div [] [ text mdl.msg ]
         ]
 

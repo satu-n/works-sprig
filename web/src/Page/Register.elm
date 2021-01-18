@@ -148,7 +148,7 @@ enc req =
 view : Mdl -> Html Msg
 view mdl =
     div [ class "pre-app" ]
-        [ div [ class "pre-app__title" ] [ mdl.req.reset_pw |> BX.ifElse "Reset Password" "Register" |> text ]
+        [ h1 [ class "pre-app__title" ] [ mdl.req.reset_pw |> BX.ifElse "Reset Password" "Register" |> text ]
         , div [] [ U.input "password" (mdl.req.reset_pw |> BX.ifElse "Reset Key" "Register Key") mdl.req.key EditKey ]
         , div [] [ U.input "password" "New Password" mdl.req.password EditPassWord ]
         , div [] [ U.input "password" "Confirmation" mdl.confirmation EditConfirmation ]

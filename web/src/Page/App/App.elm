@@ -5,7 +5,7 @@ import Browser.Dom as Dom
 import Browser.Events as Events
 import EndPoint as EP
 import Html exposing (..)
-import Html.Attributes exposing (class, classList, href, id, placeholder, spellcheck, style, target, value)
+import Html.Attributes exposing (alt, classList, href, placeholder, spellcheck, src, target, value)
 import Html.Events exposing (onBlur, onClick, onFocus, onInput)
 import Json.Decode as Decode exposing (Decoder, bool, float, int, list, null, nullable, oneOf, string)
 import Json.Decode.Extra exposing (datetime)
@@ -18,7 +18,7 @@ import Page.App.Placeholder as Placeholder
 import Task
 import Time exposing (Posix)
 import Time.Extra as TX
-import Url.Builder
+import Url.Builder as UB
 import Util as U
 
 
@@ -94,7 +94,8 @@ init user =
       , isInputFS = False
       , keyMod = KeyMod False False
       }
-    , Home { option = Nothing } |> request
+      --   TODO intro animation
+    , Cmd.none
     )
 
 
@@ -168,7 +169,7 @@ update msg mdl =
                                 |> BX.ifElse ( mdl, Cmd.none )
                                     (case c of
                                         '/' ->
-                                            ( mdl, Dom.focus idInput |> Task.attempt (\_ -> NoOp) )
+                                            ( mdl, U.idBy "app" "input" |> Dom.focus |> Task.attempt (\_ -> NoOp) )
 
                                         'w' ->
                                             ( { mdl | asOf = mdl.asOf |> timeshift mdl -1, isCurrent = False }, Cmd.none )
@@ -177,10 +178,10 @@ update msg mdl =
                                             ( { mdl | asOf = mdl.asOf |> timeshift mdl 1, isCurrent = False }, Cmd.none )
 
                                         'j' ->
-                                            ( { mdl | cursor = mdl.cursor |> U.ifTrue (\cur -> cur < List.length mdl.items - 1) ((+) 1) }, follow Down mdl )
+                                            ( { mdl | cursor = mdl.cursor < List.length mdl.items - 1 |> BX.ifElse (mdl.cursor + 1) mdl.cursor }, follow Down mdl )
 
                                         'k' ->
-                                            ( { mdl | cursor = mdl.cursor |> U.ifTrue (\cur -> 0 < cur) ((-) 1) }, follow Up mdl )
+                                            ( { mdl | cursor = 0 < mdl.cursor |> BX.ifElse (mdl.cursor - 1) mdl.cursor }, follow Up mdl )
 
                                         'x' ->
                                             ( mdl, (\item -> Select item.id |> U.cmd FromU) |> forTheItem mdl )
@@ -266,7 +267,7 @@ update msg mdl =
                                     ( mdl.keyMod.ctrl |> BX.ifElse { mdl | isInputFS = False } mdl, Cmd.none )
 
                                 Escape ->
-                                    ( mdl, Dom.blur idInput |> Task.attempt (\_ -> NoOp) )
+                                    ( mdl, U.idBy "app" "input" |> Dom.blur |> Task.attempt (\_ -> NoOp) )
 
                         AnyKey ->
                             ( mdl, Cmd.none )
@@ -337,11 +338,12 @@ update msg mdl =
                                     ]
                                         |> String.join ", "
                               }
+                                |> input0
                             , Cmd.none
                             )
 
                         ResTextC (ResUser (ResModify m)) ->
-                            ( case m of
+                            ( (case m of
                                 Email s ->
                                     { mdl | msg = "User email modified : " ++ s }
 
@@ -364,13 +366,21 @@ update msg mdl =
                                         | msg = "User timescale modified : " ++ s
                                         , timescale = U.timescale s
                                     }
+                              )
+                                |> input0
                             , Cmd.none
                             )
 
                         ResTextC (ResSearch_ r) ->
                             ( { mdl
                                 | items = r.items
-                                , msg = [ U.len r.items, "search results here." ] |> String.join " "
+                                , msg =
+                                    [ U.len r.items
+                                    , "hits:"
+                                    , -- TODO actual search condition
+                                      "actual search condition"
+                                    ]
+                                        |> String.join " "
                                 , view = Search
                               }
                             , Cmd.none
@@ -382,6 +392,7 @@ update msg mdl =
                                 , msg = [ U.len r.items, "tutorial items here." ] |> String.join " "
                                 , view = Tutorial
                               }
+                                |> input0
                             , Cmd.none
                             )
 
@@ -395,6 +406,7 @@ update msg mdl =
                                         |> String.join " "
                                 , view = Home_
                               }
+                                |> input0
                             , Cmd.none
                             )
 
@@ -479,24 +491,33 @@ follow du mdl =
 
         cursorY =
             mdl.cursor |> toFloat |> (*) h
+
+        theId =
+            U.idBy "app" "items"
     in
-    Dom.getViewportOf idItems
+    Dom.getViewportOf theId
         |> Task.andThen
             (\info ->
+                let
+                    top =
+                        info.viewport.y
+
+                    bottom =
+                        top + info.viewport.height
+
+                    setAtCursor =
+                        \adjust condition ->
+                            condition
+                                |> BX.ifElse
+                                    (Dom.setViewportOf theId 0 (cursorY - (info.viewport.height / 2) + adjust))
+                                    (Dom.blur "")
+                in
                 case du of
                     Down ->
-                        if info.viewport.y + info.viewport.height - 3 * h < cursorY then
-                            Dom.setViewportOf idItems 0 (cursorY - (info.viewport.height / 2) + 2 * h)
-
-                        else
-                            Dom.blur ""
+                        bottom - 3 * h < cursorY |> setAtCursor (2 * h)
 
                     Up ->
-                        if cursorY < info.viewport.y + h then
-                            Dom.setViewportOf idItems 0 (cursorY - (info.viewport.height / 2))
-
-                        else
-                            Dom.blur ""
+                        cursorY < top + h |> setAtCursor 0
             )
         |> Task.attempt (\_ -> NoOp)
 
@@ -516,18 +537,13 @@ setKeyMod m b mod =
             { mod | shift = b }
 
 
+input0 : Mdl -> Mdl
+input0 mdl =
+    { mdl | input = "" }
+
+
 
 -- VIEW
-
-
-idInput : String
-idInput =
-    "app__input"
-
-
-idItems : String
-idItems =
-    "app__items"
 
 
 itemHeight : Int
@@ -535,114 +551,170 @@ itemHeight =
     40
 
 
+imgDir : String
+imgDir =
+    "../images"
+
+
 view : Mdl -> Html Msg
 view mdl =
-    div [ class "app" ]
-        [ div [ class "univ__header" ]
-            [ div [ class "app__logo" ] []
-            , div [ class "app__inputs" ]
+    let
+        block =
+            "app"
+
+        idBy =
+            \elem -> U.idBy block elem |> Html.Attributes.id
+
+        bem =
+            U.bem block
+
+        img_ =
+            \alt_ basename -> img [ alt alt_, UB.relative [ imgDir, basename ++ ".png" ] [] |> src ] []
+
+        toCharBtn =
+            \cl mod ->
+                let
+                    char =
+                        mod |> U.unconsOr ' '
+                in
+                button
+                    [ bem "btn" []
+                    , classList cl
+                    , KeyDown (Char char) |> onClick
+                    ]
+                    [ img_ mod ("cmd_" ++ String.fromChar char) ]
+
+        toEditBtn =
+            toCharBtn []
+
+        toViewBtn =
+            \mod -> toCharBtn [ ( "on", mod |> asView |> MX.unwrap False (\v -> v == mdl.view) ) ] mod
+
+        item__ =
+            \elem -> U.bem "item" elem [ ( "header", True ) ]
+    in
+    div [ bem "" [] ]
+        [ header [ bem "header" [] ]
+            [ div [ bem "logos" [] ]
+                [ div [ bem "logo" [] ] [ img_ "logo" "logo" ] ]
+            , div [ bem "inputs" [] ]
                 [ textarea
-                    [ id idInput
+                    [ idBy "input"
+                    , bem "input" [ ( "fullscreen", mdl.isInputFS ) ]
                     , value mdl.input
                     , onInput Input
                     , onFocus InputFocus
                     , onBlur InputBlur
                     , placeholder Placeholder.placeholder
                     , spellcheck True
-                    , classList [ ( "app__input--fullscreen", mdl.isInputFS ) ]
                     ]
                     []
                 ]
-            , div [ class "app__submits" ]
-                [ div [ class "app__btn", class "app__btn--submit", Request (Text mdl.input) |> onClick ] [] ]
-            , div [ class "app__user", Request Logout |> onClick ] [ text mdl.user.name ]
+            , div [ bem "submits" [] ]
+                [ button [ bem "btn" [ ( "submit", True ) ], Request (Text mdl.input) |> onClick ] [ img_ "submit" "sprig" ] ]
+            , div [ bem "accounts" [] ]
+                [ button [ bem "btn" [ ( "account", True ) ], Request Logout |> onClick ] [ span [] [ text mdl.user.name ] ] ]
             ]
-        , div [ class "univ__body" ]
-            [ div [ class "app__sidebar" ]
-                [ div [ class "app__icons" ]
-                    [ div [ class "app__icon", class "app__icon--timescale" ] []
-                    , div [ class "app__icon", class "app__icon--timeshift" ] []
-                    , div [ class "app__icon", class "app__icon--updown" ] []
-                    , div [ class "app__icon", class "app__icon--select" ] []
-                    , div [ class "app__icon", class "app__icon--star" ] []
-                    , div [ class "app__icon", class "app__icon--focus" ] []
-                    , div [ class "app__icon", class "app__icon--url" ] []
+        , div [ bem "body" [] ]
+            [ div [ bem "sidebar" [] ]
+                [ div [ bem "icons" [] ]
+                    ([ ( "timescale", "1-9" )
+                     , ( "timeshift", "wo" )
+                     , ( "updown", "jk" )
+                     , ( "select", "x" )
+                     , ( "star", "s" )
+                     , ( "focus", "f" )
+                     , ( "url", "u" )
+                     ]
+                        |> List.map (\( mod, key ) -> div [ bem "icon" [] ] [ img_ mod ("cmd_" ++ key) ])
+                    )
+                ]
+            , main_ [ bem "main" [] ]
+                [ nav [ bem "nav" [] ]
+                    [ div [ bem "btns" [ ( "edit", True ) ] ]
+                        ([ "invert", "exec", "clone" ] |> List.map toEditBtn)
+                    , div [ bem "msg" [] ] [ span [] [ text mdl.msg ] ]
+                    , div [ bem "btns" [ ( "view", True ) ] ]
+                        ([ "archives", "roots", "leaves", "home" ] |> List.map toViewBtn)
+                    , div [ bem "scroll" [] ] []
+                    ]
+                , table [ bem "table" [] ]
+                    [ thead [ bem "table-header" [] ]
+                        [ th [ item__ "cursor" ] []
+                        , th [ item__ "select" ] [ U.len1 mdl.selected |> text ]
+                        , th [ item__ "star" ] []
+                        , th [ item__ "title" ] []
+                        , th [ item__ "startable" ] [ U.strTimescale mdl.timescale |> text ]
+                        , th [ item__ "bar" ] [ span [] [ "As of " ++ U.clock mdl.user.zone mdl.asOf |> text ] ]
+                        , th [ item__ "deadline" ] [ U.fmtTS mdl.timescale |> text ]
+                        , th [ item__ "priority" ] []
+                        , th [ item__ "weight" ] []
+                        , th [ item__ "assign" ] []
+                        , th [ bem "scroll" [] ] []
+                        ]
+                    , U.enumerate mdl.items
+                        |> List.map (viewItem mdl)
+                        |> tbody [ idBy "items", bem "items" [] ]
                     ]
                 ]
-            , div [ class "app__main" ]
-                [ div [ class "app__nav" ]
-                    [ div [ class "app__btns", class "app__btns--edit" ]
-                        [ div [ class "app__btn", class "app__btn--invert", KeyDown (Char 'i') |> onClick ] []
-                        , div [ class "app__btn", class "app__btn--exec", KeyDown (Char 'e') |> onClick ] []
-                        , div [ class "app__btn", class "app__btn--clone", KeyDown (Char 'c') |> onClick ] []
-                        ]
-                    , div [ class "app__msg" ] [ text mdl.msg ]
-                    , div [ class "app__btns", class "app__btns--view" ]
-                        [ div [ class "app__btn", class "app__btn--archives", KeyDown (Char 'a') |> onClick ] []
-                        , div [ class "app__btn", class "app__btn--roots", KeyDown (Char 'r') |> onClick ] []
-                        , div [ class "app__btn", class "app__btn--leaves", KeyDown (Char 'l') |> onClick ] []
-                        , div
-                            [ class "app__btn"
-                            , class "app__btn--home"
-                            , KeyDown (Char 'h') |> onClick
-                            , classList [ ( "app__btn--home:hover", mdl.view == Home_ ) ] -- TODO :hover works?
-                            ]
-                            []
-                        ]
-                    , div [ class "app__scroll", class "app__scroll--nav" ] []
-                    ]
-                , div [ class "app__table" ]
-                    [ div [ class "app__table-header" ]
-                        [ div [ class "item__cursor", class "item__cursor--header" ] []
-                        , div [ class "item__select", class "item__select--header" ] [ U.len1 mdl.selected |> text ]
-                        , div [ class "item__star" ] []
-                        , div [ class "item__title" ] []
-                        , div [ class "item__startable" ] [ U.strTimescale mdl.timescale |> text ]
-
-                        -- TODO U.class
-                        , div [ class "bar" ] [ "As of " ++ U.clock mdl.user.zone mdl.asOf |> text ]
-                        , div [ class "deadline" ] [ U.fmtTS mdl.timescale |> text ]
-                        , div [ class "priority" ] []
-                        , div [ class "weight" ] []
-                        , div [ class "assign" ] []
-                        , div [ class "scroll" ] []
-                        ]
-                    , U.enumerate mdl.items |> List.map (viewItem mdl) |> div [ id idItems ]
-                    ]
-                ]
-            , div [ class "app__sidebar" ] []
+            , div [ bem "sidebar" [ ( "pad-scroll", True ) ] ] []
             ]
-        , div [ class "univ__footer" ] []
+        , footer [ bem "footer" [] ] []
         ]
         |> Html.map FromU
+
+
+asView : String -> Maybe View
+asView s =
+    [ "home"
+    , "leaves"
+    , "roots"
+    , "archives"
+    , "focus"
+    , "search"
+    , "tutorial"
+    ]
+        |> List.map ((==) s)
+        |> U.overwrite Nothing
+            ([ Home_
+             , Leaves
+             , Roots
+             , Archives
+             , Focus_
+             , Search
+             , Tutorial
+             ]
+                |> List.map Just
+            )
 
 
 viewItem : Mdl -> ( Index, Item ) -> Html FromU
 viewItem mdl ( idx, item ) =
     let
+        bem =
+            U.bem "item"
+
         isSelected =
             List.member item.id mdl.selected
     in
-    div
-        [ style "height" (U.int itemHeight ++ "px")
-        , classList
-            [ ( "item", True )
-            , ( "item__status--cursored", idx == mdl.cursor )
-            , ( "item__status--selected", isSelected )
-            , ( "item__status--overdue", item |> isOverdue mdl )
-            , ( "item__status--high-priority", 0 < (item.priority |> Maybe.withDefault 0) )
-            ]
+    tr
+        [ Html.Attributes.style "height" (U.int itemHeight ++ "px")
+        , bem "" [ ( "selected", isSelected ) ]
         ]
-        [ div [ class "item__cursor" ] []
-        , div [ class "item__select", Select item.id |> onClick ] [ isSelected |> BX.ifElse "+" "-" |> text ]
-        , div [ class "item__star", Request (Star item.id) |> onClick ] [ item.isStarred |> BX.ifElse "★" "☆" |> text ]
-        , div [ class "item__title" ] [ item.title |> text |> (\t -> item.link |> MX.unwrap t (\l -> a [ href l, target "_blank" ] [ t ])) ]
-        , div [ class "item__startable" ] [ item.startable |> MX.unwrap "-" (U.fmtDT mdl.timescale mdl.user.zone) |> text ]
-        , div [ class "item__bar", Request (Focus item.id) |> onClick ] [ item |> dotString mdl |> text ]
-        , div [ class "item__deadline" ] [ item.deadline |> MX.unwrap "-" (U.fmtDT mdl.timescale mdl.user.zone) |> text ]
-        , div [ class "item__priority" ] [ item.isArchived |> BX.ifElse "X" (item.priority |> MX.unwrap "-" String.fromFloat) |> text ]
-        , div [ class "item__weight" ] [ item.weight |> MX.unwrap "-" String.fromFloat |> text ]
-        , div [ class "item__assign" ] [ item.assign == mdl.user.name |> BX.ifElse "me" item.assign |> text ]
+        [ td [ bem "cursor" [ ( "spot", idx == mdl.cursor ) ] ] []
+        , td [ bem "select" [], Select item.id |> onClick ] [ isSelected |> BX.ifElse "+" "-" |> text ]
+        , td [ bem "star" [], Request (Star item.id) |> onClick ] [ item.isStarred |> BX.ifElse "★" "☆" |> text ]
+        , td [ bem "title" [] ] [ span [] [ item.title |> text |> (\t -> item.link |> MX.unwrap t (\l -> a [ href l, target "_blank" ] [ t ])) ] ]
+        , td [ bem "startable" [] ] [ item.startable |> MX.unwrap "-" (U.fmtDT mdl.timescale mdl.user.zone) |> text ]
+        , td [ bem "bar" [], Request (Focus item.id) |> onClick ] [ item |> dotString mdl |> text ]
+        , td
+            [ bem "deadline" [ ( "overdue", item |> isOverdue mdl ) ] ]
+            [ item.deadline |> MX.unwrap "-" (U.fmtDT mdl.timescale mdl.user.zone) |> text ]
+        , td
+            [ bem "priority" [ ( "high", 0 < (item.priority |> Maybe.withDefault 0) ) ] ]
+            [ item.isArchived |> BX.ifElse "X" (item.priority |> MX.unwrap "-" String.fromFloat) |> text ]
+        , td [ bem "weight" [] ] [ item.weight |> MX.unwrap "-" String.fromFloat |> text ]
+        , td [ bem "assign" [] ] [ span [] [ item.assign == mdl.user.name |> BX.ifElse "me" item.assign |> text ] ]
         ]
 
 
@@ -650,7 +722,7 @@ isOverdue : Mdl -> Item -> Bool
 isOverdue mdl item =
     let
         isOverDeadline =
-            item.deadline |> MX.unwrap False (\d -> mdl.now |> U.lt d)
+            item.deadline |> MX.unwrap False (\d -> d |> U.lt mdl.now)
     in
     not item.isArchived && isOverDeadline
 
@@ -805,7 +877,7 @@ request req =
                 query =
                     case option of
                         Just s ->
-                            [ Url.Builder.string "option" s ]
+                            [ UB.string "option" s ]
 
                         _ ->
                             []

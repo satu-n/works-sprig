@@ -1,4 +1,5 @@
 /elm-stuff/
-/index.html
 /src/Config.elm
-
+/index.html
+/css/*.css
+/css/*.css.map

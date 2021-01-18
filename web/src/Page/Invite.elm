@@ -122,7 +122,7 @@ enc req =
 view : Mdl -> Html Msg
 view mdl =
     div [ class "pre-app" ]
-        [ div [ class "pre-app__title" ] [ mdl.req.forgot_pw |> BX.ifElse "Forgot Password" "Invite" |> text ]
+        [ h1 [ class "pre-app__title" ] [ mdl.req.forgot_pw |> BX.ifElse "Forgot Password" "Invite" |> text ]
         , div [] [ U.input "email" "Email" mdl.req.email EditEmail ]
         , div [] [ button [ onClick InviteMe ] [ mdl.req.forgot_pw |> BX.ifElse "Get Reset Key" "Get Invitation" |> text ] ]
         , div [] [ text mdl.msg ]

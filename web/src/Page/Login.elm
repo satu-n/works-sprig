@@ -142,7 +142,7 @@ enc req =
 view : Mdl -> Html Msg
 view mdl =
     div [ class "pre-app" ]
-        [ div [ class "pre-app__title" ] [ text "Login" ]
+        [ h1 [ class "pre-app__title" ] [ text "Login" ]
         , div [] [ U.input "email" "Email" mdl.req.email EditEmail ]
         , div [] [ U.input "password" "Password" mdl.req.password EditPassWord ]
         , div [] [ button [ onClick Login ] [ text "Login" ] ]

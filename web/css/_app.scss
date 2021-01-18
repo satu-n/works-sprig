@@ -1,0 +1,195 @@
+@use 'univ';
+
+$color__base: univ.$color__base;
+$color__border: univ.$color__border;
+$color__font: univ.$color__font;
+$color__scroll: #ccc;
+$color__table-header: #FCFEFC;
+$combat-power__freeza: 530000;
+$height__header: 64px;
+$height__footer: 8px;
+$height__nav: 48px;
+$height__table-header: 56px;
+$margin__base: 8px;
+$path__images: univ.$path__images;
+$px__border-radius: univ.$px__border-radius;
+$px__glyph: 40px;
+$px__scroll-width: 16px;
+$width__btn--account: 192px;
+$width__btn--submit: 78px; // golden ratio
+$width__sidebar: 64px;
+
+@function image_($str__name) {
+    @return url("#{$path__images}/#{$str__name}.png");
+}
+@function space-between($num__items, $px, $margin) {
+    @return ($num__items * ($px + $margin) - $margin);
+}
+@mixin glyph() {
+    @include univ.square($px__glyph);
+}
+
+.app {
+    @include univ.a-column($width: 100vw);
+
+    $margin__in-header: $margin__base;
+    $height__in-header: $height__header - 2 * $margin__in-header;
+
+    &__header {
+        @include univ.a-row($height: $height__header);
+        justify-content: space-between;
+        border-bottom: $color__border solid 1px;
+    }
+    &__logos {
+        @include univ.a-column($width: $height__header);
+        @include univ.center();
+    }
+    &__logo {
+        @include univ.square($height__in-header);
+        @include univ.has-image();
+        border-radius: $px__border-radius;
+    }
+    &__inputs {
+        flex-grow: 1;
+        height: inherit;
+        // IMPORTANT for maximize input area
+        width: 0;
+        z-index: 1;
+    }
+    &__input {
+        $max-width: calc(100vw - 2 * #{$width__sidebar});
+        $max-height: calc(100vh - #{$margin__in-header} - #{$margin__base} - #{$height__footer});
+
+        @include univ.input(calc(100% - #{$margin__in-header} / 2), $height__in-header);
+        font-size : 2rem;
+        line-height: 1em;
+        margin-top: $margin__in-header;
+        max-width: $max-width;
+        max-height: $max-height;
+        background-image: image_("guide");
+        background-size: 2.404em; // 4 characters per vertical line
+        tab-size: 4;
+        resize: none;
+        overflow: hidden;
+
+        &--fullscreen {
+            width: $max-width;
+            height: $max-height;
+            overflow: auto;
+        }
+    }
+    &__submits {
+        @include univ.a-column($width : $width__btn--submit + $margin__in-header);
+        @include univ.center();
+    }
+    &__accounts {
+        @include univ.a-column($width : $width__btn--account + $margin__in-header);
+        @include univ.center();
+        margin-right: $margin__in-header / 2;
+    }
+    &__btn {
+        @include univ.btn();
+        @include glyph();
+        @include univ.has-image();
+
+        &--submit {
+            @include univ.btn($width__btn--submit, $height__in-header);
+        }
+        &--account {
+            @include univ.btn($width__btn--account, $height__in-header);
+            background-image: image_("blank");
+        }
+    }
+    &__body {
+        @include univ.a-row($flex-grow: 1);
+    }
+    &__sidebar {
+        @include univ.a-column($width : $width__sidebar);
+
+        &--pad-scroll {
+            width : $width__sidebar - $px__scroll-width;
+        }
+    }
+    &__icons {
+        $num__icons: 7;
+        $margin__icons: $margin__base;
+        @include univ.a-row($height: space-between($num__icons, $px__glyph, $margin__icons));
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        margin-top: $height__nav + $height__table-header;
+    }
+    &__icon {
+        @include glyph();
+        @include univ.has-image();
+    }
+    &__main {
+        @include univ.a-column($flex-grow: 1);
+        min-width: 0;
+    }
+    &__nav {
+        @include univ.a-row($height: $height__nav);
+    }
+    &__btns {
+        align-items: center;
+        justify-content: space-between;
+
+        $margin__btns: $margin__base;
+        &--edit {
+            @include univ.a-column($width : space-between(3, $px__glyph, $margin__btns));
+            flex-direction: row;
+        }
+        &--view {
+            @include univ.a-column($width : space-between(4, $px__glyph, $margin__btns));
+            flex-direction: row;
+        }
+    }
+    &__msg {
+        @include univ.a-column($flex-grow: 1);
+        flex-shrink: $combat-power__freeza;
+        min-width: 0;
+        justify-content: center;
+        text-align: center;
+    }
+    &__table {
+        @include univ.a-row($flex-grow: 1);
+        flex-direction: column;
+        background-image: image_("background");
+        background-position-x: center;
+    }
+    &__table-header {
+        @include univ.a-row($height: $height__table-header);
+        background-color: $color__table-header;
+
+        th {
+            @include univ.center();
+            font-weight: normal;
+        }
+    }
+    &__items {
+        @include univ.a-row($flex-grow: 1);
+        flex-direction: column;
+        // IMPORTANT for scroll follow down/up
+        height: 0;
+        overflow-y: scroll;
+
+        ::-webkit-scrollbar-track {
+            background: $color__base;
+        }
+    }
+    &__scroll {
+        width : $px__scroll-width;
+        height: inherit;
+        background-color: $color__base;
+    }
+    ::-webkit-scrollbar {
+        width: $px__scroll-width;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: $color__scroll;
+        border-radius: $px__border-radius;
+    }
+    &__footer {
+        @include univ.a-row($height: $height__footer);
+    }
+}

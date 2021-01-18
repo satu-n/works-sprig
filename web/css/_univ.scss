@@ -1,0 +1,105 @@
+$color__base: #DDF0E4;
+$color__font: #666f6a;
+$color__border: #CEE2D9;
+$path__images: "../images";
+$px__border-radius: 6px;
+
+.univ {
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    background-color: $color__base;
+
+    &--pre-app {
+        flex-direction: row-reverse;
+        justify-content: flex-end;
+    }
+    * {
+        // border: solid thin; // XXX for debug
+        box-sizing:border-box;
+        font-family: Fira Code, Courier New;
+        color: $color__font;
+        font-size: 2rem;
+    }
+    span {
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        width: -webkit-fill-available;
+    }
+    &__objet {
+        display: flex;
+        flex-direction: column-reverse;
+        text-align: center;
+        padding: 10px;
+    }
+}
+
+@mixin btn($width: 0, $height: 0) {
+    width: $width;
+    height: $height;
+    border-radius: $px__border-radius;
+    padding: 0;
+    border: none;
+    outline: none;
+
+    &:focus, &:hover {
+        filter: brightness(.8);
+    }
+    &.on {
+        filter: brightness(.6);
+    }
+}
+@mixin input($width: 0, $height: 0) {
+    width: $width;
+    height: $height;
+    border-radius: $px__border-radius;
+    border: none;
+    outline: none;
+
+    &:focus {
+        box-shadow: 0 0 0 1px $color__font;
+    }
+    &::placeholder {
+        color: rgba($color__font, .6);
+    }
+}
+@mixin has-image() {
+    img {
+        width: inherit;
+        height: inherit;
+        border-radius: inherit;
+        // for alt
+        font-size: 1rem;
+        overflow: overlay;
+    }
+}
+@mixin square($size) {
+    width: $size;
+    height: $size;
+}
+@mixin a-row($flex-grow: 0, $height: 0) {
+    width: inherit;
+    @if 0 < $flex-grow {
+        flex-grow: $flex-grow;
+    } @else {
+        height: $height;
+    }
+    display: flex;
+    // max-width: 100%;
+}
+@mixin a-column($flex-grow: 0, $width: 0) {
+    @if 0 < $flex-grow {
+        flex-grow: $flex-grow;
+    } @else {
+        width: $width;
+    }
+    height: inherit;
+    display: flex;
+    flex-direction: column;
+}
+@mixin center(){
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}

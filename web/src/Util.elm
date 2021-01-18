@@ -1,12 +1,11 @@
 module Util exposing (..)
 
 import Bool.Extra as BX
-import Config
 import Date
 import Dict
 import EndPoint as EP
 import Html exposing (..)
-import Html.Attributes exposing (..)
+import Html.Attributes exposing (classList, placeholder, type_, value)
 import Html.Events exposing (onInput)
 import Http
 import Http.Detailed
@@ -20,33 +19,6 @@ import Time.Extra exposing (Interval(..))
 import Url.Builder exposing (QueryParameter)
 
 
-url : EP.EndPoint -> List QueryParameter -> String
-url ep query =
-    let
-        path =
-            case ep of
-                EP.Invite ->
-                    [ "invite" ]
-
-                EP.Register ->
-                    [ "register" ]
-
-                EP.Auth ->
-                    [ "auth" ]
-
-                EP.App_ app ->
-                    "app"
-                        :: (case app of
-                                EP.Tasks ->
-                                    [ "tasks" ]
-
-                                EP.Task tid ->
-                                    [ "task", String.fromInt tid ]
-                           )
-    in
-    Url.Builder.crossOrigin Config.epBase path query
-
-
 
 -- Http.Detailed.Error to inform user of 400 BadRequest details
 
@@ -55,22 +27,12 @@ type alias HttpError =
     Http.Detailed.Error String
 
 
-
--- type alias HttpResult_ a =
---     Result (Http.Detailed.Error String) a
-
-
 type alias HttpResult a =
     Result HttpError ( Http.Metadata, a )
 
 
 type alias HttpResultAny =
     HttpResult String
-
-
-anyOk : HttpResultAny
-anyOk =
-    Ok ( { url = "", statusCode = 200, statusText = "Ok", headers = Dict.empty }, "" )
 
 
 
@@ -82,7 +44,7 @@ request method ep query body resMsg dec =
     Http.riskyRequest
         { method = method
         , headers = []
-        , url = url ep query
+        , url = EP.url ep query
         , body = body
         , expect = Http.Detailed.expectJson resMsg dec
         , timeout = Nothing
@@ -95,7 +57,7 @@ request_ method ep query body resMsg =
     Http.riskyRequest
         { method = method
         , headers = []
-        , url = url ep query
+        , url = EP.url ep query
         , body = body
         , expect = Http.Detailed.expectString resMsg
         , timeout = Nothing
@@ -348,7 +310,7 @@ fmtDT ts z t =
     in
     case ts.interval of
         Year ->
-            date |> Date.format "yyyy"
+            date |> Date.format "yyyy//"
 
         Quarter ->
             date |> Date.format "yyyy/MM/"
@@ -397,11 +359,27 @@ apply n f x =
         |> List.foldl (\_ -> f) x
 
 
-ifTrue : (a -> Bool) -> (a -> a) -> a -> a
-ifTrue p f x =
-    p x |> BX.ifElse (f x) x
-
-
 enumerate : List a -> List ( Int, a )
 enumerate =
     List.indexedMap Tuple.pair
+
+
+bem : String -> String -> List ( String, Bool ) -> Attribute msg
+bem block element modifiers =
+    let
+        be =
+            block ++ (element |> String.isEmpty |> BX.ifElse "" ("__" ++ element))
+    in
+    ( be, True )
+        :: (modifiers |> List.map (Tuple.mapFirst (\m -> be ++ "--" ++ m)))
+        |> classList
+
+
+unconsOr : Char -> String -> Char
+unconsOr default s =
+    s |> String.uncons |> Maybe.map Tuple.first |> Maybe.withDefault default
+
+
+idBy : String -> String -> String
+idBy block elem =
+    block ++ "__" ++ elem

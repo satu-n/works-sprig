@@ -13,7 +13,7 @@ jump
     step
         hop
 
-#0      existing task. update other attributes
+#0      existing item. update other attributes
 *       star
 $24     expected to take 24 hours
 @user   assign to user
@@ -27,7 +27,7 @@ root
     branch
         joint] leaf0
 
-write               read: alphabet inherits the current time
+write               read
 2021/06/15T12:30    2021-06-15T12:30
 2021//              2021-01-01T00:00
 /6/                 YYYY-06-01T00:00
@@ -35,6 +35,7 @@ write               read: alphabet inherits the current time
 //15T12:            YYYY-MM-15T12:00
 12:                 YYYY-MM-DDT12:00
 :30                 YYYY-MM-DDThh:30
+                    YMDh inherits the current time
 
 /       command help
 """

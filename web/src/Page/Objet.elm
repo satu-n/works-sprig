@@ -1,4 +1,4 @@
-module Div.B exposing (..)
+module Page.Objet exposing (..)
 
 -- https://elm-lang.org/examples/cube
 -- Render a spinning cube.
@@ -10,7 +10,7 @@ module Div.B exposing (..)
 
 import Browser.Events as E
 import Html exposing (..)
-import Html.Attributes exposing (class, height, style, width)
+import Html.Attributes exposing (height, style, width)
 import Math.Matrix4 as Mat4 exposing (Mat4)
 import Math.Vector3 as Vec3 exposing (Vec3, vec3)
 import WebGL
@@ -59,15 +59,12 @@ subscriptions _ =
 
 view : Mdl -> Html Msg
 view angle =
-    div [ class "something-graphical" ]
-        [ text "https://elm-lang.org/examples/cube"
-        , WebGL.toHtml
-            [ width 400
-            , height 400
-            , style "display" "block"
-            ]
-            [ WebGL.entity vertexShader fragmentShader cubeMesh (uniforms angle)
-            ]
+    WebGL.toHtml
+        [ width 400
+        , height 400
+        , style "display" "block"
+        ]
+        [ WebGL.entity vertexShader fragmentShader cubeMesh (uniforms angle)
         ]
 
 
