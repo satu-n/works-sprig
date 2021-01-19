@@ -26,8 +26,8 @@ $font-size__detail: 1.5rem;
     }
     @mixin td($flex-grow: 0, $width: 0) {
         @include univ.a-column($flex-grow, $width);
-        flex-direction: row;
         @include univ.center();
+        flex-direction: row;
         overflow: hidden;
         white-space: nowrap;
     }
@@ -46,13 +46,12 @@ $font-size__detail: 1.5rem;
     }
     &__title {
         @include td($width : $width__title);
-        justify-content: left;
 
-        span {
+        span, a {
             font-size: $font-size__detail;
         }
         a {
-            text-decoration: none;
+            text-decoration: underline;
         }
     }
     &__startable {
@@ -84,6 +83,8 @@ $font-size__detail: 1.5rem;
     }
     &__priority {
         @include td($width : $width__float);
+        justify-content: flex-end;
+        padding-right: 6px;
         font-size: $font-size__detail;
 
         &--high {
@@ -92,6 +93,8 @@ $font-size__detail: 1.5rem;
     }
     &__weight {
         @include td($width : $width__float);
+        justify-content: flex-end;
+        padding-right: 6px;
         font-size: $font-size__detail;
     }
     &__assign {

@@ -184,10 +184,12 @@
   width: inherit;
   height: 328px;
   display: flex;
+  margin-top: 104px;
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  margin-top: 104px;
+  list-style-type: none;
+  padding: 0;
 }
 .app__icon {
   width: 40px;
@@ -304,10 +306,10 @@
   height: inherit;
   display: flex;
   flex-direction: column;
-  flex-direction: row;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: row;
   overflow: hidden;
   white-space: nowrap;
 }
@@ -319,10 +321,10 @@
   height: inherit;
   display: flex;
   flex-direction: column;
-  flex-direction: row;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: row;
   overflow: hidden;
   white-space: nowrap;
 }
@@ -331,10 +333,10 @@
   height: inherit;
   display: flex;
   flex-direction: column;
-  flex-direction: row;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: row;
   overflow: hidden;
   white-space: nowrap;
 }
@@ -343,29 +345,28 @@
   height: inherit;
   display: flex;
   flex-direction: column;
-  flex-direction: row;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: row;
   overflow: hidden;
   white-space: nowrap;
-  justify-content: left;
 }
-.item__title span {
+.item__title span, .item__title a {
   font-size: 1.5rem;
 }
 .item__title a {
-  text-decoration: none;
+  text-decoration: underline;
 }
 .item__startable {
   width: 80px;
   height: inherit;
   display: flex;
   flex-direction: column;
-  flex-direction: row;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: row;
   overflow: hidden;
   white-space: nowrap;
 }
@@ -377,10 +378,10 @@
   height: inherit;
   display: flex;
   flex-direction: column;
-  flex-direction: row;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: row;
   overflow: hidden;
   white-space: nowrap;
   flex-shrink: 530000;
@@ -395,10 +396,10 @@
   height: inherit;
   display: flex;
   flex-direction: column;
-  flex-direction: row;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: row;
   overflow: hidden;
   white-space: nowrap;
 }
@@ -413,12 +414,14 @@
   height: inherit;
   display: flex;
   flex-direction: column;
-  flex-direction: row;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: row;
   overflow: hidden;
   white-space: nowrap;
+  justify-content: flex-end;
+  padding-right: 6px;
   font-size: 1.5rem;
 }
 .item__priority--high {
@@ -429,12 +432,14 @@
   height: inherit;
   display: flex;
   flex-direction: column;
-  flex-direction: row;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: row;
   overflow: hidden;
   white-space: nowrap;
+  justify-content: flex-end;
+  padding-right: 6px;
   font-size: 1.5rem;
 }
 .item__assign {
@@ -442,10 +447,10 @@
   height: inherit;
   display: flex;
   flex-direction: column;
-  flex-direction: row;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-direction: row;
   overflow: hidden;
   white-space: nowrap;
   text-align: center;

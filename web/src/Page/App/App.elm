@@ -15,6 +15,7 @@ import List.Extra as LX
 import Maybe.Extra as MX
 import Page as P
 import Page.App.Placeholder as Placeholder
+import String.Extra as SX
 import Task
 import Time exposing (Posix)
 import Time.Extra as TX
@@ -62,7 +63,8 @@ type alias Tid =
 
 
 type View
-    = Home_
+    = None
+    | Home_
     | Leaves
     | Roots
     | Archives
@@ -86,7 +88,7 @@ init user =
       , cursor = 0
       , selected = []
       , timescale = U.timescale "D"
-      , view = Home_
+      , view = None
       , now = Time.millisToPosix 0
       , asOf = Time.millisToPosix 0
       , isCurrent = True
@@ -305,8 +307,7 @@ update msg mdl =
                                 |> (&&) (res.option |> MX.isNothing)
                                 |> BX.ifElse "Nothing to execute, working tree clean."
                                     ([ res.option |> MX.unwrap False ((==) "archives") |> BX.ifElse "Last" ""
-                                     , U.len res.items
-                                     , res.option |> Maybe.withDefault "items"
+                                     , res.items |> List.length |> singularize (res.option |> Maybe.withDefault "items")
                                      , "here."
                                      ]
                                         |> String.join " "
@@ -375,8 +376,7 @@ update msg mdl =
                             ( { mdl
                                 | items = r.items
                                 , msg =
-                                    [ U.len r.items
-                                    , "hits:"
+                                    [ (r.items |> List.length |> singularize "hits") ++ ":"
                                     , -- TODO actual search condition
                                       "actual search condition"
                                     ]
@@ -389,7 +389,11 @@ update msg mdl =
                         ResTextC (ResTutorial_ r) ->
                             ( { mdl
                                 | items = r.items
-                                , msg = [ U.len r.items, "tutorial items here." ] |> String.join " "
+                                , msg =
+                                    [ r.items |> List.length |> singularize "materials"
+                                    , "here."
+                                    ]
+                                        |> String.join " "
                                 , view = Tutorial
                               }
                                 |> input0
@@ -400,8 +404,10 @@ update msg mdl =
                             ( { mdl
                                 | items = r.items
                                 , msg =
-                                    [ U.int r.created ++ " items created."
-                                    , U.int r.updated ++ " items updated."
+                                    [ r.created |> singularize "items"
+                                    , "created."
+                                    , r.updated |> singularize "items"
+                                    , "updated."
                                     ]
                                         |> String.join " "
                                 , view = Home_
@@ -413,7 +419,11 @@ update msg mdl =
                 Cloned (Ok ( _, res )) ->
                     ( { mdl
                         | input = res.text
-                        , msg = U.int res.count ++ " items cloned."
+                        , msg =
+                            [ res.count |> singularize "items"
+                            , "cloned."
+                            ]
+                                |> String.join " "
                       }
                     , Cmd.none
                     )
@@ -422,7 +432,10 @@ update msg mdl =
                     ( { mdl
                         | items = res.items
                         , msg =
-                            [ [ U.int res.count, "items", res.revert |> BX.ifElse "reverted" "executed" ] |> String.join " "
+                            [ [ res.count |> singularize "items"
+                              , res.revert |> BX.ifElse "reverted" "executed"
+                              ]
+                                |> String.join " "
                             , [ "(", U.int res.chain, "chained", ")." ] |> String.join " "
                             ]
                                 |> String.join " "
@@ -542,6 +555,19 @@ input0 mdl =
     { mdl | input = "" }
 
 
+singularize : String -> Int -> String
+singularize plural i =
+    [ ( "items", "item" )
+    , ( "leaves", "leaf" )
+    , ( "roots", "root" )
+    , ( "archives", "archive" )
+    , ( "hits", "hit" )
+    , ( "materials", "material" )
+    ]
+        |> LX.find (\( p, _ ) -> p == plural)
+        |> MX.unwrap plural (\( p, s ) -> SX.pluralize s p i)
+
+
 
 -- VIEW
 
@@ -617,7 +643,7 @@ view mdl =
             ]
         , div [ bem "body" [] ]
             [ div [ bem "sidebar" [] ]
-                [ div [ bem "icons" [] ]
+                [ ul [ bem "icons" [] ]
                     ([ ( "timescale", "1-9" )
                      , ( "timeshift", "wo" )
                      , ( "updown", "jk" )
@@ -626,7 +652,7 @@ view mdl =
                      , ( "focus", "f" )
                      , ( "url", "u" )
                      ]
-                        |> List.map (\( mod, key ) -> div [ bem "icon" [] ] [ img_ mod ("cmd_" ++ key) ])
+                        |> List.map (\( mod, key ) -> li [ bem "icon" [] ] [ img_ mod ("cmd_" ++ key) ])
                     )
                 ]
             , main_ [ bem "main" [] ]
@@ -712,10 +738,20 @@ viewItem mdl ( idx, item ) =
             [ item.deadline |> MX.unwrap "-" (U.fmtDT mdl.timescale mdl.user.zone) |> text ]
         , td
             [ bem "priority" [ ( "high", 0 < (item.priority |> Maybe.withDefault 0) ) ] ]
-            [ item.isArchived |> BX.ifElse "X" (item.priority |> MX.unwrap "-" String.fromFloat) |> text ]
-        , td [ bem "weight" [] ] [ item.weight |> MX.unwrap "-" String.fromFloat |> text ]
+            [ item.isArchived |> BX.ifElse "X" (item.priority |> MX.unwrap "-" priority) |> text ]
+        , td [ bem "weight" [] ] [ item.weight |> MX.unwrap "-" weight |> text ]
         , td [ bem "assign" [] ] [ span [] [ item.assign == mdl.user.name |> BX.ifElse "me" item.assign |> text ] ]
         ]
+
+
+priority : Float -> String
+priority x =
+    [ x < -1000, 1000 < x ] |> U.overwrite (U.signedDecimal 1 x) [ "--", "high" ]
+
+
+weight : Float -> String
+weight x =
+    [ 10000 < x ] |> U.overwrite (U.decimal 1 x) [ "heavy" ]
 
 
 isOverdue : Mdl -> Item -> Bool

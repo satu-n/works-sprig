@@ -13,6 +13,7 @@ import Json.Decode as Decode exposing (Decoder)
 import Json.Encode as Encode
 import List.Extra as LX
 import Maybe.Extra as MX
+import String.Extra as SX
 import Task
 import Time
 import Time.Extra exposing (Interval(..))
@@ -383,3 +384,13 @@ unconsOr default s =
 idBy : String -> String -> String
 idBy block elem =
     block ++ "__" ++ elem
+
+
+signedDecimal : Int -> Float -> String
+signedDecimal n x =
+    0 < x |> BX.ifElse "+" "" |> (\sign -> sign ++ decimal n x)
+
+
+decimal : Int -> Float -> String
+decimal n x =
+    x * 10 ^ (n |> toFloat) |> round |> String.fromInt |> (\s -> SX.insertAt "." (String.length s - n) s)
