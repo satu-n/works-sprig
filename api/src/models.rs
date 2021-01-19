@@ -16,7 +16,7 @@ pub type Conn = r2d2::PooledConnection<ConnectionManager<PgConnection>>;
 
 // FROM SCHEMA
 
-#[derive(Queryable, Insertable, Clone)]
+#[derive(Queryable, Insertable, Clone, Debug, PartialEq)]
 pub struct Arrow {
     pub source: i32,
     pub target: i32,
@@ -174,7 +174,7 @@ impl SelTask {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Arrows {
     pub arrows: Vec<Arrow>,
 }
@@ -252,12 +252,14 @@ impl Tid {
                 break
             }
             path.push(cursor);
-            let mut destinations = map[&cursor].clone();
-            if let Some(dest) = destinations.pop() {
-                remains.push(cursor);
-                re_map.insert(cursor, destinations);
-                cursor = dest;
-                continue
+            if let Some(destinations) = map.get(&cursor) {
+                let mut destinations = destinations.clone();
+                if let Some(dest) = destinations.pop() {
+                    remains.push(cursor);
+                    re_map.insert(cursor, destinations);
+                    cursor = dest;
+                    continue
+                }
             }
             results.push(Path::from(path.clone()));
             while let Some(rem) = remains.pop() {

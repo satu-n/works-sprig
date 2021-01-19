@@ -19,7 +19,7 @@ struct ResBody {
     query: Q,
 }
 
-pub async fn home( // FIXME 500 ISE
+pub async fn home(
     q: web::Query<Q>,
     user: models::AuthedUser,
     pool: web::Data<models::Pool>,
@@ -169,6 +169,7 @@ impl Sorter {
     }
 }
 
+#[derive(Debug, PartialEq)]
 struct SubSorter {
     cursor: i64,
     entries: Vec<i32>,
@@ -176,6 +177,7 @@ struct SubSorter {
     map: HashMap<i32, SubTask>,
 }
 
+#[derive(Debug, PartialEq)]
 struct SubTask {
     startable: Option<i64>,
     deadline: Option<i64>,
@@ -252,5 +254,93 @@ impl SubSorter {
         }
         paths.retain(|path| !path.is_empty());
         paths
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn t_00() {
+        assert_eq!(0,0);
+    }
+    #[test]
+    fn t_110() {
+        let task = SubTask {
+            startable: None,
+            deadline: Some(360),
+            priority: None,
+            weight: Some(0),
+            rank: None,
+        };
+        let mut map = HashMap::new();
+        map.insert(0, task);
+        let mut sub = SubSorter {
+            cursor: 0,
+            entries: vec![0],
+            arrows: models::Arrows {
+                arrows: Vec::new(),
+            },
+            map: map,
+        };
+        sub.exec();
+        assert_eq!(sub.map[&0], SubTask {
+            startable: None,
+            deadline: Some(360),
+            priority: Some(-360),
+            weight: Some(0),
+            rank: Some(0),
+        });
+    }
+    #[test]
+    fn t_130() {
+        let task = SubTask {
+            startable: None,
+            deadline: None,
+            priority: None,
+            weight: None,
+            rank: None,
+        };
+        let mut map = HashMap::new();
+        map.insert(0, task);
+        let mut sub = SubSorter {
+            cursor: 0,
+            entries: vec![0],
+            arrows: models::Arrows {
+                arrows: Vec::new(),
+            },
+            map: map,
+        };
+        sub.exec();
+        assert_eq!(sub.map[&0], SubTask {
+            startable: None,
+            deadline: None,
+            priority: None,
+            weight: None,
+            rank: None,
+        });
+    }
+    #[test]
+    fn t_150() {
+        let task = SubTask {
+            startable: None,
+            deadline: Some(360),
+            priority: None,
+            weight: Some(0),
+            rank: None,
+        };
+        let mut map = HashMap::new();
+        map.insert(0, task);
+        let mut sub = SubSorter {
+            cursor: 0,
+            entries: vec![0],
+            arrows: models::Arrows {
+                arrows: Vec::new(),
+            },
+            map: map,
+        };
+        sub.exec();
+        dbg!(&sub);
     }
 }
