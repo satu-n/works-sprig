@@ -578,6 +578,153 @@ singularize plural i =
         |> MX.unwrap plural (\( p, s ) -> SX.pluralize s p i)
 
 
+type alias Millis =
+    Int
+
+
+type alias Stripe =
+    { l : Millis
+    , r : Millis
+    }
+
+
+type alias SubScheduler =
+    { cursor : Millis
+    , stripes : List Stripe
+    , weight : Millis
+    , result : List Schedule
+    }
+
+
+type alias Scheduler =
+    { cursor : Millis
+    , stripes : List Stripe
+    , source : List Item
+    , result : List Item
+    }
+
+
+schedule : Mdl -> Mdl
+schedule mdl =
+    let
+        daily =
+            mdl.user.allocations
+                |> List.map .hours
+                |> List.sum
+    in
+    if not (0 < daily) then
+        mdl
+
+    else
+        let
+            zone =
+                mdl.user.zone
+
+            from =
+                mdl.now |> TX.add TX.Day -1 zone
+
+            until =
+                let
+                    days =
+                        mdl.items
+                            |> List.filterMap .weight
+                            |> List.sum
+                            |> (\w -> round w // daily)
+                in
+                mdl.items
+                    |> List.filterMap .startable
+                    |> List.map Time.posixToMillis
+                    |> List.maximum
+                    |> MX.unwrap mdl.now Time.millisToPosix
+                    |> TX.add TX.Day (days + 1) zone
+
+            stripes =
+                TX.range TX.Day 1 zone from until
+                    |> List.concatMap
+                        (\day ->
+                            mdl.user.allocations
+                                |> List.map
+                                    (\alc ->
+                                        let
+                                            p =
+                                                day |> TX.posixToParts zone
+
+                                            l =
+                                                { p | hour = alc.open_h, minute = alc.open_m } |> TX.partsToPosix zone
+
+                                            r =
+                                                l |> TX.add TX.Hour alc.hours zone
+                                        in
+                                        Stripe
+                                            (l |> Time.posixToMillis)
+                                            (r |> Time.posixToMillis)
+                                    )
+                        )
+
+            subLoop : SubScheduler -> SubScheduler
+            subLoop sub =
+                if sub.weight == 0 then
+                    sub
+
+                else
+                    case sub.stripes |> LX.uncons of
+                        Nothing ->
+                            sub
+
+                        Just ( str, strs ) ->
+                            let
+                                point =
+                                    max str.l sub.cursor
+
+                                draw =
+                                    min (str.r - point) sub.weight |> max 0
+
+                                weight =
+                                    sub.weight - draw
+                            in
+                            subLoop
+                                { sub
+                                    | cursor = point + draw
+                                    , stripes = weight == 0 |> BX.ifElse sub.stripes strs
+                                    , weight = weight
+                                    , result = 0 < draw |> BX.ifElse (Schedule point (point + draw) :: sub.result) sub.result
+                                }
+
+            loop : Scheduler -> List Item
+            loop sch =
+                case sch.source |> LX.uncons of
+                    Nothing ->
+                        sch.result |> List.reverse
+
+                    Just ( item, items ) ->
+                        let
+                            sub =
+                                subLoop
+                                    { cursor = item.startable |> MX.unwrap sch.cursor (\t -> max sch.cursor (t |> Time.posixToMillis))
+                                    , stripes = sch.stripes
+                                    , weight = item.weight |> MX.unwrap 0 (\w -> w * 60 * 60 * 1000 |> round)
+                                    , result = []
+                                    }
+                        in
+                        loop
+                            { sch
+                                | cursor = sub.cursor
+                                , source = items
+                                , stripes = sub.stripes
+                                , result = { item | schedules = sub.result } :: sch.result
+                            }
+
+            newItems =
+                loop
+                    { cursor = mdl.now |> Time.posixToMillis
+                    , source = mdl.items
+                    , stripes = stripes
+                    , result = []
+                    }
+        in
+        { mdl | items = newItems }
+
+
 
 -- VIEW
 
@@ -682,7 +829,7 @@ view mdl =
                         , th [ item__ "title" ] []
                         , th [ item__ "startable" ] [ U.strTimescale mdl.timescale |> text ]
                         , th [ item__ "bar" ] [ span [] [ "As of " ++ U.clock mdl.user.zone mdl.asOf |> text ] ]
-                        , th [ item__ "deadline" ] [ U.fmtTS mdl.timescale |> text ]
+                        , th [ item__ "deadline" ] [ U.fmtDT mdl.timescale |> text ]
                         , th [ item__ "priority" ] []
                         , th [ item__ "weight" ] []
                         , th [ item__ "assign" ] []
@@ -741,26 +888,26 @@ viewItem mdl ( idx, item ) =
         , td [ bem "select" [], Select item.id |> onClick ] [ isSelected |> BX.ifElse "+" "-" |> text ]
         , td [ bem "star" [], Request (Star item.id) |> onClick ] [ item.isStarred |> BX.ifElse "★" "☆" |> text ]
         , td [ bem "title" [] ] [ span [] [ item.title |> text |> (\t -> item.link |> MX.unwrap t (\l -> a [ href l, target "_blank" ] [ t ])) ] ]
-        , td [ bem "startable" [] ] [ item.startable |> MX.unwrap "-" (U.fmtDT mdl.timescale mdl.user.zone) |> text ]
+        , td [ bem "startable" [] ] [ item.startable |> MX.unwrap "-" (U.strDT mdl.timescale mdl.user.zone) |> text ]
         , td [ bem "bar" [], Request (Focus item.id) |> onClick ] [ item |> dotString mdl |> text ]
         , td
             [ bem "deadline" [ ( "overdue", item |> isOverdue mdl ) ] ]
-            [ item.deadline |> MX.unwrap "-" (U.fmtDT mdl.timescale mdl.user.zone) |> text ]
+            [ item.deadline |> MX.unwrap "-" (U.strDT mdl.timescale mdl.user.zone) |> text ]
         , td
             [ bem "priority" [ ( "high", 0 < (item.priority |> Maybe.withDefault 0) ) ] ]
-            [ item.isArchived |> BX.ifElse "X" (item.priority |> MX.unwrap "-" priority) |> text ]
-        , td [ bem "weight" [] ] [ item.weight |> MX.unwrap "-" weight |> text ]
+            [ item.isArchived |> BX.ifElse "X" (item.priority |> MX.unwrap "-" strPriority) |> text ]
+        , td [ bem "weight" [] ] [ item.weight |> MX.unwrap "-" strWeight |> text ]
         , td [ bem "assign" [] ] [ span [] [ item.assign == mdl.user.name |> BX.ifElse "me" item.assign |> text ] ]
         ]
 
 
-priority : Float -> String
-priority x =
+strPriority : Float -> String
+strPriority x =
     [ x < -1000, 1000 < x ] |> U.overwrite (U.signedDecimal 1 x) [ "low", "high" ]
 
 
-weight : Float -> String
-weight x =
+strWeight : Float -> String
+strWeight x =
     [ 10000 < x ] |> U.overwrite (U.decimal 1 x) [ "heavy" ]
 
 
@@ -1180,177 +1327,14 @@ decItem =
         |> optional "schedules" (list decSchedule) []
 
 
-decSchedule : Decoder Schedule
-decSchedule =
-    Decode.succeed Schedule
-        |> required "l" (datetime |> Decode.map Time.posixToMillis)
-        |> required "r" (datetime |> Decode.map Time.posixToMillis)
-
-
-schedule : Mdl -> Mdl
-schedule mdl =
-    let
-        daily =
-            mdl.user.allocations
-                |> List.map .hours
-                |> List.sum
-    in
-    if not (0 < daily) then
-        mdl
-
-    else
-        let
-            zone =
-                mdl.user.zone
-
-            from =
-                mdl.now |> TX.add TX.Day -1 zone
-
-            until =
-                let
-                    days =
-                        mdl.items
-                            |> List.filterMap .weight
-                            |> List.sum
-                            |> (\w -> round w // daily)
-                in
-                mdl.items
-                    |> List.filterMap .startable
-                    |> List.map Time.posixToMillis
-                    |> List.maximum
-                    |> MX.unwrap mdl.now Time.millisToPosix
-                    |> TX.add TX.Day (days + 1) zone
-
-            stripes =
-                TX.range TX.Day 1 zone from until
-                    |> List.concatMap
-                        (\day ->
-                            mdl.user.allocations
-                                |> List.map
-                                    (\alc ->
-                                        let
-                                            p =
-                                                day |> TX.posixToParts zone
-
-                                            l =
-                                                { p | hour = alc.open_h, minute = alc.open_m } |> TX.partsToPosix zone
-
-                                            r =
-                                                l |> TX.add TX.Hour alc.hours zone
-                                        in
-                                        Stripe
-                                            (l |> Time.posixToMillis)
-                                            (r |> Time.posixToMillis)
-                                    )
-                        )
-
-            newItems =
-                loop
-                    { cursor = mdl.now |> Time.posixToMillis
-                    , source = mdl.items
-                    , stripes = stripes
-                    , result = []
-                    }
-        in
-        { mdl | items = newItems }
-
-
-loop : Scheduler -> List Item
-loop sch =
-    case sch.source |> LX.uncons of
-        Nothing ->
-            sch.result |> List.reverse
-
-        Just ( item, items ) ->
-            let
-                sub =
-                    subLoop
-                        { cursor = item.startable |> MX.unwrap sch.cursor (\t -> max sch.cursor (t |> Time.posixToMillis))
-                        , stripes = sch.stripes
-                        , weight = item.weight |> MX.unwrap 0 (\w -> w * 60 * 60 * 1000 |> round)
-                        , result = []
-                        }
-            in
-            loop
-                { sch
-                    | cursor = sub.cursor
-                    , source = items
-                    , stripes = sub.stripes
-                    , result = { item | schedules = sub.result } :: sch.result
-                }
-
-
-type alias Scheduler =
-    { cursor : Millis
-    , source : List Item
-    , stripes : List Stripe
-    , result : List Item
-    }
-
-
-subLoop : SubScheduler -> SubScheduler
-subLoop sub =
-    let
-        width =
-            \stripe -> stripe.r - stripe.l
-    in
-    case sub.stripes |> LX.uncons of
-        Nothing ->
-            sub
-
-        Just ( stripe, stripes ) ->
-            if stripe.r < sub.cursor then
-                subLoop { sub | stripes = stripes }
-
-            else if sub.cursor |> U.between stripe.l stripe.r then
-                if (stripe.r - sub.cursor) < sub.weight then
-                    subLoop
-                        { sub
-                            | stripes = stripes
-                            , weight = sub.weight - (stripe.r - sub.cursor)
-                            , result = Schedule sub.cursor stripe.r :: sub.result
-                        }
-
-                else
-                    { sub
-                        | cursor = sub.cursor + sub.weight
-                        , result = Schedule sub.cursor (sub.cursor + sub.weight) :: sub.result
-                    }
-
-            else if width stripe < sub.weight then
-                subLoop
-                    { sub
-                        | stripes = stripes
-                        , weight = sub.weight - width stripe
-                        , result = Schedule stripe.l stripe.r :: sub.result
-                    }
-
-            else
-                { sub
-                    | cursor = stripe.l + sub.weight
-                    , result = Schedule stripe.l (stripe.l + sub.weight) :: sub.result
-                }
-
-
-type alias SubScheduler =
-    { cursor : Millis
-    , stripes : List Stripe
-    , weight : Millis
-    , result : List Schedule
-    }
-
-
 type alias Schedule =
     { l : Millis
     , r : Millis
     }
 
 
-type alias Stripe =
-    { l : Millis
-    , r : Millis
-    }
-
-
-type alias Millis =
-    Int
+decSchedule : Decoder Schedule
+decSchedule =
+    Decode.succeed Schedule
+        |> required "l" (datetime |> Decode.map Time.posixToMillis)
+        |> required "r" (datetime |> Decode.map Time.posixToMillis)

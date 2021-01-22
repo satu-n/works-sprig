@@ -246,32 +246,32 @@ strTimescale t =
     1 < t.multiple |> BX.ifElse (t.multiple |> int) "" |> (\mult -> mult ++ strInterval t.interval)
 
 
-fmtTS : Timescale -> String
-fmtTS t =
+fmtDT : Timescale -> String
+fmtDT t =
     case t.interval of
         Year ->
-            "Y//"
+            "Y"
 
         Quarter ->
-            "Y/M/"
+            "Y/M"
 
         Month ->
-            "Y/M/"
+            "Y/M"
 
         Week ->
-            "/M/D"
+            "M/D"
 
         Day ->
-            "/M/D"
+            "M/D"
 
         Hour ->
-            "//DTh:"
+            "/D h:"
 
         Minute ->
             "h:m"
 
         Second ->
-            ":m:s"
+            "m's"
 
         _ ->
             "?"
@@ -294,8 +294,8 @@ clock z t =
     date ++ time
 
 
-fmtDT : Timescale -> Time.Zone -> Time.Posix -> String
-fmtDT ts z t =
+strDT : Timescale -> Time.Zone -> Time.Posix -> String
+strDT ts z t =
     let
         date =
             Date.fromPosix z t
@@ -311,28 +311,28 @@ fmtDT ts z t =
     in
     case ts.interval of
         Year ->
-            date |> Date.format "yyyy//"
+            date |> Date.format "yyyy"
 
         Quarter ->
-            date |> Date.format "yyyy/MM/"
+            date |> Date.format "yyyy/MM"
 
         Month ->
-            date |> Date.format "yyyy/MM/"
+            date |> Date.format "yyyy/MM"
 
         Week ->
-            date |> Date.format "/MM/dd"
+            date |> Date.format "MM/dd"
 
         Day ->
-            date |> Date.format "/MM/dd"
+            date |> Date.format "MM/dd"
 
         Hour ->
-            date |> Date.format "//dd" |> (\day -> [ day, "T", h, ":" ]) |> String.concat
+            date |> Date.format "/dd" |> (\day -> [ day, " ", h, ":" ]) |> String.concat
 
         Minute ->
             [ h, ":", m ] |> String.concat
 
         Second ->
-            [ ":", m, ":", s ] |> String.concat
+            [ m, "'", s ] |> String.concat
 
         _ ->
             "?"
