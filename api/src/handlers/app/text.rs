@@ -1,5 +1,5 @@
 use actix_web::{web, HttpResponse};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveTime, Utc};
 use chrono_tz::Tz;
 use diesel::prelude::*;
 use regex::Regex;
@@ -89,8 +89,7 @@ pub enum ReqModify {
     Password(PasswordSet),
     Name(String),
     Timescale(Timescale),
-    // TODO alloc
-    // Allocations(Vec<Allocation>),
+    Allocations(Vec<ReqAllocation>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -99,6 +98,8 @@ pub struct PasswordSet {
     pub new: String,
     pub confirmation: String,
 }
+
+pub type ReqAllocation = models::ResAllocation;
 
 #[derive(Serialize)]
 enum ResCommand {
@@ -128,8 +129,7 @@ enum ResModify {
     Password(()),
     Name(String),
     Timescale(String),
-    // TODO alloc
-    // Allocations(Vec<models::ResAllocation>),
+    Allocations(Vec<models::ResAllocation>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -216,7 +216,12 @@ impl ResCommand {
         Self::Help(String::from(
             // TODO search examples
             "\
+            <!-- Press [Ctrl] + [↓] -->\n\
+            \n\
+            \n\
+            \n\
             <!-- Select one, remove <!-- prefix, configure it, and send. -->\n\
+            \n\
             <!-- / <!-- this help -->\n\
             <!-- /tutorial <!-- tutorial -->\n\
             <!-- /u <!-- show user info -->\n\
@@ -224,6 +229,7 @@ impl ResCommand {
             <!-- /u -p {old} {new} {confirmation} <!-- modify user password -->\n\
             <!-- /u -n {name} <!-- modify user name -->\n\
             <!-- /u -t {timescale} <!-- modify user default timescale -->\n\
+            <!-- /u -a {h}:{m}-{i}h {h}:{m}-{i}h ... <!-- modify user time allocations -->\n\
             <!-- /s {conditions} <!-- search for tasks by conditions -->\n\
             "
         ))
@@ -298,7 +304,17 @@ impl ReqModify {
     ) -> Result<ResModify, errors::ServiceError> {
         use diesel::dsl::{select, exists};
         use crate::schema::users::dsl::{users, email, name};
+        use crate::schema::allocations::dsl::{allocations, owner};
 
+        if let Self::Allocations(req_alcs) = self {
+            let mut ins = Vec::new();
+            for alc in &req_alcs {
+                ins.push(alc.verify(user)?);
+            }
+            diesel::delete(allocations.filter(owner.eq(&user.id))).execute(conn)?;
+            diesel::insert_into(allocations).values(&ins).execute(conn)?;
+            return Ok(ResModify::Allocations(req_alcs))
+        }
         let mut alt_user = AltUser {
             email: None,
             hash: None,
@@ -335,6 +351,7 @@ impl ReqModify {
                 alt_user.timescale = Some(timescale.as_str().into());
                 ResModify::Timescale(timescale.as_str().into())
             },
+            _ => unreachable!(),
         };
         diesel::update(user).set(&alt_user).execute(conn)?;
 
@@ -386,6 +403,25 @@ impl Timescale {
             Self::Minute => "m",
             Self::Second => "s",
         }
+    }
+}
+
+impl ReqAllocation {
+    fn verify(&self,
+        user: &models::AuthedUser,
+    ) -> Result<models::Allocation, errors::ServiceError> {
+        if let Ok(time) = NaiveTime::parse_from_str(
+            &*format!("{}:{}", self.open_h, self.open_m), "%H:%M") {
+            if (1..=24).contains(&self.hours) {
+                return Ok(models::Allocation {
+                    owner: user.id,
+                    open: time,
+                    hours: self.hours,
+                })
+            }
+            return Err(errors::ServiceError::BadRequest("please specify 1 to 24 hours.".into()))
+        }
+        Err(errors::ServiceError::BadRequest("time notation invalid.".into()))
     }
 }
 

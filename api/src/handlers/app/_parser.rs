@@ -101,6 +101,7 @@ parser! {
             token('p').with(spaces1_().with(password_set_())).map(|x| ReqModify::Password(x)),
             token('n').with(spaces1_().with(ascii_graphics1_())).map(|x| ReqModify::Name(x)),
             token('t').with(spaces1_().with(timescale_())).map(|x| ReqModify::Timescale(x)),
+            token('a').with(many(spaces1_().with(req_allocation_()))).map(|x| ReqModify::Allocations(x)),
         ))
     }
 }
@@ -133,6 +134,17 @@ parser! {
             p(Timescale::Minute),
             p(Timescale::Second),
         ))
+    }
+}
+parser! {
+    fn req_allocation_[Input]()(Input) -> ReqAllocation
+    where [ Input: Stream<Token = char> ] {
+        non_nega_i_().skip(token(':')).and(non_nega_i_()).skip(token('-')).and(non_nega_i_()).skip(token('h'))
+        .map(|((open_h, open_m), hours)| ReqAllocation {
+            open_h: open_h,
+            open_m: open_m,
+            hours: hours,
+        })
     }
 }
 parser! {

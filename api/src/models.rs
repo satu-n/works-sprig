@@ -428,7 +428,7 @@ impl Selectable for Allocation {
     )}
 }
 
-#[derive(Serialize)]
+#[derive(Debug, PartialEq, Serialize)]
 pub struct ResAllocation {
     pub open_h: i32,
     pub open_m: i32,
