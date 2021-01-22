@@ -58,15 +58,7 @@ decRes =
         |> required "name" string
         |> required "tz" string
         |> required "timescale" string
-        |> required "allocations" (list decAllocation)
-
-
-decAllocation : Decoder U.Allocation
-decAllocation =
-    Decode.succeed U.Allocation
-        |> required "open_h" int
-        |> required "open_m" int
-        |> required "hours" int
+        |> required "allocations" (list U.decAllocation)
 
 
 

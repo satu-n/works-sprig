@@ -10,6 +10,7 @@ import Html.Events exposing (onInput)
 import Http
 import Http.Detailed
 import Json.Decode as Decode exposing (Decoder)
+import Json.Decode.Pipeline exposing (required)
 import Json.Encode as Encode
 import List.Extra as LX
 import Maybe.Extra as MX
@@ -406,3 +407,11 @@ type alias Allocation =
     , open_m : Int
     , hours : Int
     }
+
+
+decAllocation : Decoder Allocation
+decAllocation =
+    Decode.succeed Allocation
+        |> required "open_h" Decode.int
+        |> required "open_m" Decode.int
+        |> required "hours" Decode.int

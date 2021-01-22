@@ -131,7 +131,7 @@ type FromS
     | Cloned (U.HttpResult ResClone)
     | Execed (U.HttpResult ResExec)
     | Focused (U.HttpResult ResFocus)
-    | Starred U.HttpResultAny
+    | Starred Tid U.HttpResultAny
 
 
 update : Msg -> Mdl -> ( Mdl, Cmd Msg )
@@ -209,16 +209,16 @@ update msg mdl =
                                             ( mdl, Clone mdl.selected |> request )
 
                                         'a' ->
-                                            ( mdl, Home { option = Just "archives" } |> request )
+                                            ( mdl, Home (Just "archives") |> request )
 
                                         'r' ->
-                                            ( mdl, Home { option = Just "roots" } |> request )
+                                            ( mdl, Home (Just "roots") |> request )
 
                                         'l' ->
-                                            ( mdl, Home { option = Just "leaves" } |> request )
+                                            ( mdl, Home (Just "leaves") |> request )
 
                                         'h' ->
-                                            ( mdl, Home { option = Nothing } |> request )
+                                            ( mdl, Home Nothing |> request )
 
                                         '1' ->
                                             ( { mdl | timescale = U.timescale "Y" }, Cmd.none )
@@ -300,30 +300,51 @@ update msg mdl =
                     ( mdl, U.cmd Goto P.LP )
 
                 Homed (Ok ( _, res )) ->
-                    ( { mdl
-                        | items = res.items
-                        , msg =
-                            res.items
-                                |> List.isEmpty
-                                |> (&&) (res.option |> MX.isNothing)
-                                |> BX.ifElse "Nothing to execute, working tree clean."
-                                    ([ res.option |> MX.unwrap False ((==) "archives") |> BX.ifElse "Last" ""
-                                     , res.items |> List.length |> singularize (res.option |> Maybe.withDefault "items")
-                                     , "here."
-                                     ]
-                                        |> String.join " "
-                                    )
-                        , timescale = mdl.user.timescale
-                        , view =
+                    let
+                        view_ =
                             [ "leaves"
                             , "roots"
                             , "archives"
                             ]
                                 |> List.map (\s -> res.option == Just s)
                                 |> U.overwrite Home_ [ Leaves, Roots, Archives ]
+
+                        items =
+                            { mdl | items = res.items }
+                                |> schedule
+                                |> (\m ->
+                                        m.items
+                                            |> List.filter
+                                                (case view_ of
+                                                    Leaves ->
+                                                        .isLeaf
+
+                                                    Roots ->
+                                                        .isRoot
+
+                                                    _ ->
+                                                        \_ -> True
+                                                )
+                                   )
+                    in
+                    ( { mdl
+                        | items = items
+                        , selected = []
+                        , msg =
+                            items
+                                |> List.isEmpty
+                                |> (&&) (view_ == Home_)
+                                |> BX.ifElse "Nothing to execute, working tree clean."
+                                    ([ res.option |> MX.unwrap False ((==) "archives") |> BX.ifElse "Last" ""
+                                     , items |> List.length |> singularize (res.option |> Maybe.withDefault "items")
+                                     , "here."
+                                     ]
+                                        |> String.join " "
+                                    )
+                        , timescale = mdl.user.timescale
+                        , view = view_
                         , isCurrent = True
                       }
-                        |> schedule
                     , Cmd.none
                     )
 
@@ -348,14 +369,14 @@ update msg mdl =
                         ResTextC (ResUser (ResModify m)) ->
                             ( (case m of
                                 Email s ->
-                                    { mdl | msg = "User email modified : " ++ s }
+                                    { mdl | msg = "User email modified: " ++ s }
 
                                 Password _ ->
                                     { mdl | msg = "User password modified." }
 
                                 Name s ->
                                     { mdl
-                                        | msg = "User name modified : " ++ s
+                                        | msg = "User name modified: " ++ s
                                         , user =
                                             let
                                                 user =
@@ -366,7 +387,7 @@ update msg mdl =
 
                                 Timescale s ->
                                     { mdl
-                                        | msg = "User timescale modified : " ++ s
+                                        | msg = "User timescale modified: " ++ s
                                         , timescale = U.timescale s
                                         , user =
                                             let
@@ -374,6 +395,33 @@ update msg mdl =
                                                     mdl.user
                                             in
                                             { user | timescale = U.timescale s }
+                                    }
+
+                                Allocations alcs ->
+                                    let
+                                        s =
+                                            alcs
+                                                |> List.map
+                                                    (\alc ->
+                                                        [ U.int alc.open_h
+                                                        , ":"
+                                                        , U.int alc.open_m
+                                                        , "-"
+                                                        , U.int alc.hours
+                                                        , "h"
+                                                        ]
+                                                            |> String.concat
+                                                    )
+                                                |> String.join ", "
+                                    in
+                                    { mdl
+                                        | msg = "User time allocations modified: " ++ s
+                                        , user =
+                                            let
+                                                user =
+                                                    mdl.user
+                                            in
+                                            { user | allocations = alcs }
                                     }
                               )
                                 |> input0
@@ -469,8 +517,8 @@ update msg mdl =
                     , Cmd.none
                     )
 
-                Starred (Ok _) ->
-                    ( { mdl | items = mdl.items |> LX.updateAt mdl.cursor (\item -> { item | isStarred = not item.isStarred }) }
+                Starred tid (Ok _) ->
+                    ( { mdl | items = mdl.items |> LX.updateIf (\item -> item.id == tid) (\item -> { item | isStarred = not item.isStarred }) }
                     , Cmd.none
                     )
 
@@ -492,7 +540,7 @@ update msg mdl =
                 Focused (Err e) ->
                     handle mdl e
 
-                Starred (Err e) ->
+                Starred _ (Err e) ->
                     handle mdl e
 
 
@@ -1056,7 +1104,7 @@ type Modifier
 
 type Req
     = Logout
-    | Home { option : Maybe String }
+    | Home (Maybe String)
     | Text String
     | Clone (List Tid)
     | Exec { tids : List Tid, revert : Bool }
@@ -1070,7 +1118,7 @@ request req =
         Logout ->
             U.delete_ EP.Auth (FromS << LoggedOut)
 
-        Home { option } ->
+        Home option ->
             let
                 query =
                     case option of
@@ -1095,7 +1143,7 @@ request req =
             U.get (EP.Task tid |> EP.App_) [] (FromS << Focused) decFocus
 
         Star tid ->
-            U.put_ (EP.Task tid |> EP.App_) (FromS << Starred)
+            U.put_ (EP.Task tid |> EP.App_) (FromS << Starred tid)
 
 
 enc : Req -> Encode.Value
@@ -1169,6 +1217,7 @@ type ResModify
     | Password ()
     | Name String
     | Timescale String
+    | Allocations (List U.Allocation)
 
 
 type alias ResSearch =
@@ -1215,6 +1264,8 @@ decText =
                                                 |> required "Name" string
                                             , Decode.succeed Timescale
                                                 |> required "Timescale" string
+                                            , Decode.succeed Allocations
+                                                |> required "Allocations" (list U.decAllocation)
                                             ]
                                         )
                                 ]
@@ -1308,6 +1359,8 @@ type alias Item =
     , weight : Maybe Float
     , link : Maybe String
     , schedules : List Schedule
+    , isLeaf : Bool
+    , isRoot : Bool
     }
 
 
@@ -1325,6 +1378,8 @@ decItem =
         |> required "weight" (nullable float)
         |> required "link" (nullable string)
         |> optional "schedules" (list decSchedule) []
+        |> required "is_leaf" bool
+        |> required "is_root" bool
 
 
 type alias Schedule =

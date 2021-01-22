@@ -20,7 +20,7 @@ struct ResBody {
     name: String,
     tz: Tz,
     timescale: String,
-    allocations: Vec<ResAllocation>,
+    allocations: Vec<models::ResAllocation>,
 }
 
 pub async fn login(
@@ -88,7 +88,7 @@ impl models::AuthedUser {
         .filter(owner.eq(&self.id))
         .select(models::Allocation::columns())
         .load::<models::Allocation>(conn)?
-        .into_iter().map(|alc| alc.into()).collect::<Vec<ResAllocation>>();
+        .into_iter().map(|alc| alc.into()).collect::<Vec<models::ResAllocation>>();
 
         Ok(ResBody {
             name: user.name,
@@ -96,22 +96,5 @@ impl models::AuthedUser {
             timescale: user.timescale,
             allocations: _allocations,
         })
-    }
-}
-
-#[derive(Serialize)]
-struct ResAllocation {
-    open_h: i32,
-    open_m: i32,
-    hours: i32,
-}
-
-impl From<models::Allocation> for ResAllocation {
-    fn from(alc: models::Allocation) -> Self {
-        Self {
-            open_h: alc.open.format("%H").to_string().parse::<i32>().unwrap(),
-            open_m: alc.open.format("%M").to_string().parse::<i32>().unwrap(),
-            hours: alc.hours,
-        }
     }
 }

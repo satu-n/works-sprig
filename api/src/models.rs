@@ -23,7 +23,7 @@ pub struct Allocation {
     pub hours: i32,
 }
 
-#[derive(Queryable, Insertable, Clone, Debug, PartialEq)]
+#[derive(Queryable, Insertable, Debug, PartialEq)]
 pub struct Arrow {
     pub source: i32,
     pub target: i32,
@@ -109,6 +109,8 @@ pub struct ResTask {
     pub priority: Option<f32>,
     pub weight: Option<f32>,
     pub link: Option<String>,
+    pub is_leaf: bool,
+    pub is_root: bool,
 }
 
 #[derive(Queryable)]
@@ -154,19 +156,6 @@ impl Selectable for SelTask {
     )}
 }
 
-impl Selectable for Allocation {
-    type Columns = (
-        allocations::owner,
-        allocations::open,
-        allocations::hours,
-    );
-    fn columns() -> Self::Columns {(
-        allocations::owner,
-        allocations::open,
-        allocations::hours,
-    )}
-}
-
 impl SelTask {
     pub fn to_res(self) -> ResTask {
         ResTask {
@@ -180,11 +169,13 @@ impl SelTask {
             priority: None,
             weight: self.weight,
             link: self.link,
+            is_leaf: false,
+            is_root: false,
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Arrows {
     pub arrows: Vec<Arrow>,
 }
@@ -247,6 +238,7 @@ impl From<i32> for Tid {
 
 impl Tid {
     pub fn is(&self, lr: LR, arrows: &Arrows) -> bool {
+        // FIXME isolated node
         arrows.arrows.iter().all(|arw| arw.trace_to(!lr) != self.id)
     }
     pub fn paths_to(&self, lr: LR, arrows: &Arrows) -> Vec<Path> {
@@ -335,6 +327,12 @@ impl Arrows {
         }
         self.list(LR::Leaf).iter().any(|leaf| Tid::from(*leaf).paths_to(LR::Root, &self).is_empty())
     }
+    pub fn set_lr(&self, tasks: &mut Vec<ResTask>) {
+        for t in tasks {
+            t.is_leaf = Tid::from(t.id).is(LR::Leaf, &self);
+            t.is_root = Tid::from(t.id).is(LR::Root, &self);
+        }
+    }
 }
 
 #[derive(Debug, Default, PartialEq, PartialOrd)]
@@ -414,5 +412,35 @@ impl AuthedUser {
     pub fn localize(&self, dt: &DateTime<Utc>) -> String {
         let local = dt.with_timezone(&self.tz).naive_local();
         local.format("%Y/%m/%dT%H:%M").to_string()
+    }
+}
+
+impl Selectable for Allocation {
+    type Columns = (
+        allocations::owner,
+        allocations::open,
+        allocations::hours,
+    );
+    fn columns() -> Self::Columns {(
+        allocations::owner,
+        allocations::open,
+        allocations::hours,
+    )}
+}
+
+#[derive(Serialize)]
+pub struct ResAllocation {
+    pub open_h: i32,
+    pub open_m: i32,
+    pub hours: i32,
+}
+
+impl From<Allocation> for ResAllocation {
+    fn from(alc: Allocation) -> Self {
+        Self {
+            open_h: alc.open.format("%H").to_string().parse::<i32>().unwrap(),
+            open_m: alc.open.format("%M").to_string().parse::<i32>().unwrap(),
+            hours: alc.hours,
+        }
     }
 }

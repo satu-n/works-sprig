@@ -89,6 +89,8 @@ pub enum ReqModify {
     Password(PasswordSet),
     Name(String),
     Timescale(Timescale),
+    // TODO alloc
+    // Allocations(Vec<Allocation>),
 }
 
 #[derive(Debug, PartialEq)]
@@ -126,6 +128,8 @@ enum ResModify {
     Password(()),
     Name(String),
     Timescale(String),
+    // TODO alloc
+    // Allocations(Vec<models::ResAllocation>),
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -238,6 +242,8 @@ impl ResCommand {
                     priority: None,
                     weight: None,
                     link: None, // TODO tutorial external
+                    is_leaf: false,
+                    is_root: false,
                 },
             ],
         }
@@ -393,7 +399,7 @@ impl Condition {
         let mut res_tasks = self.query(user, conn)?;
         self.filter_regex(&mut res_tasks)?;
         if max(self.context.0, self.context.1).is_some() {
-            // TODO load all allows ?
+            // TODO load all arrows ?
             let _arrows: models::Arrows = arrows.load::<models::Arrow>(conn)?.into();
             self.filter_context(&mut res_tasks, &_arrows);
         }

@@ -85,40 +85,26 @@ impl Config {
             .load::<models::SelTask>(conn)?
             .into_iter().map(|t| t.to_res()).collect()
         } else {
-            let _res_tasks = _intermediate
+            let mut _res_tasks = _intermediate
                 .order(updated_at.desc())
                 .load::<models::SelTask>(conn)?
                 .into_iter().map(|t| t.to_res()).collect();
+            let arrows = models::Arrows::among(&_res_tasks, conn)?;
+            arrows.set_lr(&mut _res_tasks);
             let _allocations = allocations
                 .filter(owner.eq(&user.id))
                 .select(models::Allocation::columns())
                 .load::<models::Allocation>(conn)?;
-            let arrows = models::Arrows::among(&_res_tasks, conn)?;
             let mut sorter = Sorter {
                 tasks: _res_tasks,
                 allocations: _allocations,
                 now: Utc::now(),
                 tz: user.tz,
             };
-            sorter.exec(arrows.clone());
-            self.filter(&mut sorter.tasks, &arrows);
+            sorter.exec(arrows);
             sorter.tasks
         };
         Ok(res_tasks)
-    }
-    fn filter(&self,
-        tasks: &mut Vec<models::ResTask>,
-        arrows: &models::Arrows,
-    ) {
-        match self {
-            Self::Leaves => {
-                tasks.retain(|t| models::Tid::from(t.id).is(models::LR::Leaf, arrows))
-            },
-            Self::Roots => {
-                tasks.retain(|t| models::Tid::from(t.id).is(models::LR::Root, arrows))
-            },
-            _ => (),
-        }
     }
 }
 
@@ -170,6 +156,7 @@ impl Sorter {
         }).collect::<Vec<(i64, i64)>>().to_interval_set()
     }
     fn splice(&self, dt: DateTime<Utc>) -> i64 {
+        // TODO which one works better?
         // let today = self.now.date();
         // let days = dt.signed_duration_since(self.now).num_days();
 
