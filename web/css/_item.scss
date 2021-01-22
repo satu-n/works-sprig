@@ -7,7 +7,6 @@ $color__base--selected: #C2DBFF;
 $color__border: #DDE5E5;
 $color__cursor: #769BA9;
 $color__font: app.$color__font;
-$height__item: 40px;
 $width__assign: 96px;
 $width__cursor: 3px;
 $width__datetime: 80px;
@@ -17,7 +16,7 @@ $width__title: 253px;
 $font-size__detail: 1.5rem;
 
 .item {
-    @include univ.a-row($height: $height__item);
+    @include univ.a-row();
     border-bottom: $color__border solid 1px;
     background-color: $color__base;
 

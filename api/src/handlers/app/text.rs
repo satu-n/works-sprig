@@ -238,7 +238,6 @@ impl ResCommand {
                     priority: None,
                     weight: None,
                     link: None, // TODO tutorial external
-                    stripes: Vec::new(),
                 },
             ],
         }

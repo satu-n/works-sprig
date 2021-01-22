@@ -394,3 +394,15 @@ signedDecimal n x =
 decimal : Int -> Float -> String
 decimal n x =
     x * 10 ^ (n |> toFloat) |> round |> String.fromInt |> (\s -> SX.insertAt "." (String.length s - n) s)
+
+
+between : comparable -> comparable -> comparable -> Bool
+between l r x =
+    l < x && x < r
+
+
+type alias Allocation =
+    { open_h : Int
+    , open_m : Int
+    , hours : Int
+    }

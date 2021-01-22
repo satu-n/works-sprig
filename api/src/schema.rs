@@ -1,4 +1,13 @@
 table! {
+    allocations (id) {
+        id -> Int4,
+        owner -> Int4,
+        open -> Time,
+        hours -> Int4,
+    }
+}
+
+table! {
     arrows (source, target) {
         source -> Int4,
         target -> Int4,
@@ -46,16 +55,16 @@ table! {
         hash -> Varchar,
         name -> Varchar,
         timescale -> Varchar,
-        open -> Time,
-        close -> Time,
         created_at -> Timestamptz,
         updated_at -> Timestamptz,
     }
 }
 
+joinable!(allocations -> users (owner));
 joinable!(tasks -> users (assign));
 
 allow_tables_to_appear_in_same_query!(
+    allocations,
     arrows,
     invitations,
     permissions,

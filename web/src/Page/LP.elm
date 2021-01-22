@@ -4,8 +4,7 @@ import Dict
 import EndPoint as EP
 import Html exposing (..)
 import Html.Attributes exposing (class)
-import Http
-import Json.Decode as Decode exposing (Decoder, string)
+import Json.Decode as Decode exposing (Decoder, int, list, string)
 import Json.Decode.Pipeline exposing (required)
 import Page as P
 import Time
@@ -27,6 +26,7 @@ type alias User =
     { name : String
     , zone : Time.Zone
     , timescale : U.Timescale
+    , allocations : List U.Allocation
     }
 
 
@@ -34,12 +34,13 @@ type alias Res =
     { name : String
     , tz : String
     , timescale : String
+    , allocations : List U.Allocation
     }
 
 
 init : ( Mdl, Cmd Msg )
 init =
-    ( { user = { name = "", zone = Time.utc, timescale = U.timescale "D" }
+    ( { user = { name = "", zone = Time.utc, timescale = U.timescale "D", allocations = [] }
       , msg = ""
       }
     , getMe
@@ -57,6 +58,15 @@ decRes =
         |> required "name" string
         |> required "tz" string
         |> required "timescale" string
+        |> required "allocations" (list decAllocation)
+
+
+decAllocation : Decoder U.Allocation
+decAllocation =
+    Decode.succeed U.Allocation
+        |> required "open_h" int
+        |> required "open_m" int
+        |> required "hours" int
 
 
 
@@ -98,6 +108,7 @@ update msg mdl =
                                     |> Maybe.map (\f -> f ())
                                     |> Maybe.withDefault Time.utc
                             , timescale = U.timescale res.timescale
+                            , allocations = res.allocations
                             }
                       }
                     , U.cmd Goto (P.App_ P.App)
@@ -121,7 +132,7 @@ view mdl =
 
 
 subscriptions : Mdl -> Sub Msg
-subscriptions mdl =
+subscriptions _ =
     Sub.none
 
 

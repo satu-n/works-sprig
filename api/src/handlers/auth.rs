@@ -5,7 +5,7 @@ use diesel::prelude::*;
 use serde::{Serialize, Deserialize};
 
 use crate::errors;
-use crate::models;
+use crate::models::{self, Selectable};
 use crate::utils;
 
 #[derive(Deserialize)]
@@ -20,6 +20,7 @@ struct ResBody {
     name: String,
     tz: Tz,
     timescale: String,
+    allocations: Vec<ResAllocation>,
 }
 
 pub async fn login(
@@ -80,12 +81,37 @@ impl models::AuthedUser {
         conn: &models::Conn,
     ) -> Result<ResBody, errors::ServiceError> {
         use crate::schema::users::dsl::users;
+        use crate::schema::allocations::dsl::{allocations, owner};
 
         let user = users.find(self.id).first::<models::User>(conn)?;
+        let _allocations = allocations
+        .filter(owner.eq(&self.id))
+        .select(models::Allocation::columns())
+        .load::<models::Allocation>(conn)?
+        .into_iter().map(|alc| alc.into()).collect::<Vec<ResAllocation>>();
+
         Ok(ResBody {
             name: user.name,
             tz: self.tz,
             timescale: user.timescale,
+            allocations: _allocations,
         })
+    }
+}
+
+#[derive(Serialize)]
+struct ResAllocation {
+    open_h: i32,
+    open_m: i32,
+    hours: i32,
+}
+
+impl From<models::Allocation> for ResAllocation {
+    fn from(alc: models::Allocation) -> Self {
+        Self {
+            open_h: alc.open.format("%H").to_string().parse::<i32>().unwrap(),
+            open_m: alc.open.format("%M").to_string().parse::<i32>().unwrap(),
+            hours: alc.hours,
+        }
     }
 }

@@ -22,6 +22,7 @@ pub async fn register(
 ) -> Result<HttpResponse, errors::ServiceError> {
 
     let _ = web::block(move || {
+        use crate::schema::allocations::dsl::allocations;
         use crate::schema::permissions::dsl::permissions;
         use crate::schema::users::dsl::{users, email};
 
@@ -30,7 +31,7 @@ pub async fn register(
         if req.reset_pw {
             let old_user = users.filter(email.eq(&req.email)).first::<models::User>(&conn)?;
             let alt_user = req.to_alt(&conn)?;
-            diesel::update(&old_user).set(&alt_user).execute(&conn)?
+            diesel::update(&old_user).set(&alt_user).execute(&conn)?;
         } else {
             let new_user = req.to_new(&conn)?;
             let id = diesel::insert_into(users).values(&new_user).get_result::<models::User>(&conn)?.id;
@@ -39,7 +40,14 @@ pub async fn register(
                 object: id,
                 edit: true,
             };
-            diesel::insert_into(permissions).values(&permission).execute(&conn)?
+            diesel::insert_into(permissions).values(&permission).execute(&conn)?;
+            let allocation = models::Allocation {
+                owner: id,
+                open: NaiveTime::from_hms(9, 0, 0),
+                hours: 6,
+            };
+            diesel::insert_into(allocations).values(&allocation).execute(&conn)?;
+
         };
         Ok(())
     }).await?;
@@ -53,8 +61,6 @@ struct NewUser {
     email: String,
     hash: String,
     name: String,
-    open: NaiveTime,
-    close: NaiveTime,
 }
 
 #[derive(AsChangeset)]
@@ -70,8 +76,6 @@ impl ReqBody {
             email: self.email.to_owned(),
             hash: utils::hash(&self.password)?,
             name: self.email.to_owned(),
-            open: NaiveTime::from_hms(9, 0, 0),
-            close: NaiveTime::from_hms(15, 0, 0),
         })
     }
     fn to_alt(&self, conn: &models::Conn) -> Result<AltUser, errors::ServiceError> {

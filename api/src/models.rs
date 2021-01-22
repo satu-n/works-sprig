@@ -16,6 +16,13 @@ pub type Conn = r2d2::PooledConnection<ConnectionManager<PgConnection>>;
 
 // FROM SCHEMA
 
+#[derive(Queryable, Insertable)]
+pub struct Allocation {
+    pub owner: i32,
+    pub open: NaiveTime,
+    pub hours: i32,
+}
+
 #[derive(Queryable, Insertable, Clone, Debug, PartialEq)]
 pub struct Arrow {
     pub source: i32,
@@ -61,8 +68,6 @@ pub struct User {
     pub hash: String,
     pub name: String,
     pub timescale: String,
-    pub open: NaiveTime,
-    pub close: NaiveTime,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -104,13 +109,6 @@ pub struct ResTask {
     pub priority: Option<f32>,
     pub weight: Option<f32>,
     pub link: Option<String>,
-    pub stripes: Vec<Stripe>,
-}
-
-#[derive(Serialize)]
-pub struct Stripe {
-    pub l: DateTime<Utc>,
-    pub r: DateTime<Utc>,
 }
 
 #[derive(Queryable)]
@@ -156,6 +154,19 @@ impl Selectable for SelTask {
     )}
 }
 
+impl Selectable for Allocation {
+    type Columns = (
+        allocations::owner,
+        allocations::open,
+        allocations::hours,
+    );
+    fn columns() -> Self::Columns {(
+        allocations::owner,
+        allocations::open,
+        allocations::hours,
+    )}
+}
+
 impl SelTask {
     pub fn to_res(self) -> ResTask {
         ResTask {
@@ -169,7 +180,6 @@ impl SelTask {
             priority: None,
             weight: self.weight,
             link: self.link,
-            stripes: Vec::new(),
         }
     }
 }

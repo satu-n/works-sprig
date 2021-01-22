@@ -1,6 +1,10 @@
 use actix_web::{web, HttpResponse};
-use chrono::{DateTime, NaiveTime, Utc};
+use chrono::{Date, DateTime, Duration, Utc};
+use chrono_tz::Tz;
 use diesel::prelude::*;
+use gcollections::ops::{Cardinality, Intersection};
+use interval::interval_set::ToIntervalSet;
+use interval::interval_set::{IntervalSet};
 use serde::{Serialize, Deserialize};
 use std::cmp::min;
 use std::collections::HashMap;
@@ -63,8 +67,9 @@ impl Config {
         user: &models::AuthedUser,
         conn: &models::Conn,
     ) -> Result<Vec<models::ResTask>, errors::ServiceError> {
+        use crate::schema::allocations::dsl::{allocations, owner};
         use crate::schema::tasks::dsl::{tasks, assign, is_archived, is_starred, updated_at};
-        use crate::schema::users::dsl::{users, open, close};
+        use crate::schema::users::dsl::users;
 
         let archives = if let Self::Archives = self { true } else { false };
 
@@ -84,14 +89,17 @@ impl Config {
                 .order(updated_at.desc())
                 .load::<models::SelTask>(conn)?
                 .into_iter().map(|t| t.to_res()).collect();
-
+            let _allocations = allocations
+                .filter(owner.eq(&user.id))
+                .select(models::Allocation::columns())
+                .load::<models::Allocation>(conn)?;
             let arrows = models::Arrows::among(&_res_tasks, conn)?;
-            let mut sorter = Sorter::new(_res_tasks,
-                users
-                .find(&user.id)
-                .select((open, close))
-                .first::<(NaiveTime, NaiveTime)>(conn)?
-            );
+            let mut sorter = Sorter {
+                tasks: _res_tasks,
+                allocations: _allocations,
+                now: Utc::now(),
+                tz: user.tz,
+            };
             sorter.exec(arrows.clone());
             self.filter(&mut sorter.tasks, &arrows);
             sorter.tasks
@@ -115,21 +123,13 @@ impl Config {
 }
 
 struct Sorter {
-    now: DateTime<Utc>,
     tasks: Vec<models::ResTask>,
-    hours: (NaiveTime, NaiveTime),
+    allocations: Vec<models::Allocation>,
+    now: DateTime<Utc>,
+    tz: Tz,
 }
 
 impl Sorter {
-    fn new(
-        tasks: Vec<models::ResTask>,
-        hours: (NaiveTime, NaiveTime)
-    ) -> Self { Self {
-            now: Utc::now(),
-            tasks: tasks,
-            hours: hours,
-        }
-    }
     fn exec(&mut self, arrows: models::Arrows) {
         let mut sub = self.to_sub(arrows);
         sub.exec();
@@ -160,12 +160,33 @@ impl Sorter {
             map: map,
         }
     }
-    // TODO splice
+    fn allocations_set(&self, date0: Date<Utc>, days: i64) -> IntervalSet<i64> {
+        (-1..=days+1).flat_map(|i| {
+            self.allocations.iter().map(move |alc| {
+                let open = date0.with_timezone(&self.tz).and_time(alc.open).unwrap() + Duration::days(i);
+                let close = open + Duration::hours(alc.hours as i64);
+                (open.timestamp(), close.timestamp())
+            })
+        }).collect::<Vec<(i64, i64)>>().to_interval_set()
+    }
     fn splice(&self, dt: DateTime<Utc>) -> i64 {
+        // let today = self.now.date();
+        // let days = dt.signed_duration_since(self.now).num_days();
+
+        // (self.now.timestamp(), dt.timestamp()).to_interval_set()
+        // .intersection(&self.allocations_set(today, days)).size() as i64
+
         let days = dt.signed_duration_since(self.now).num_days();
-        let daily = 6 * 3600;
-        let alpha = 0;
-        daily * days + alpha
+        let daily = self.allocations.iter().map(|alc| alc.hours as i64).sum::<i64>() * 3600;
+        let adjust = {
+            let within_last_1 = (
+                (self.now + Duration::days(days)).timestamp(),
+                dt.timestamp(),
+            ).to_interval_set();
+            let allocations_set = self.allocations_set(self.now.date(), 0);
+            within_last_1.intersection(&allocations_set).size() as i64
+        };
+        daily * days + adjust
     }
 }
 
@@ -262,16 +283,12 @@ impl SubSorter {
 mod tests {
     use super::*;
     #[test]
-    fn t_00() {
-        assert_eq!(0,0);
-    }
-    #[test]
     fn t_110() {
         let task = SubTask {
             startable: None,
             deadline: Some(360),
             priority: None,
-            weight: Some(0),
+            weight: Some(120),
             rank: None,
         };
         let mut map = HashMap::new();
@@ -288,59 +305,9 @@ mod tests {
         assert_eq!(sub.map[&0], SubTask {
             startable: None,
             deadline: Some(360),
-            priority: Some(-360),
-            weight: Some(0),
+            priority: Some(-240),
+            weight: Some(120),
             rank: Some(0),
         });
-    }
-    #[test]
-    fn t_130() {
-        let task = SubTask {
-            startable: None,
-            deadline: None,
-            priority: None,
-            weight: None,
-            rank: None,
-        };
-        let mut map = HashMap::new();
-        map.insert(0, task);
-        let mut sub = SubSorter {
-            cursor: 0,
-            entries: vec![0],
-            arrows: models::Arrows {
-                arrows: Vec::new(),
-            },
-            map: map,
-        };
-        sub.exec();
-        assert_eq!(sub.map[&0], SubTask {
-            startable: None,
-            deadline: None,
-            priority: None,
-            weight: None,
-            rank: None,
-        });
-    }
-    #[test]
-    fn t_150() {
-        let task = SubTask {
-            startable: None,
-            deadline: Some(360),
-            priority: None,
-            weight: Some(0),
-            rank: None,
-        };
-        let mut map = HashMap::new();
-        map.insert(0, task);
-        let mut sub = SubSorter {
-            cursor: 0,
-            entries: vec![0],
-            arrows: models::Arrows {
-                arrows: Vec::new(),
-            },
-            map: map,
-        };
-        sub.exec();
-        dbg!(&sub);
     }
 }

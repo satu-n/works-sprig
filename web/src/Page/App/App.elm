@@ -9,7 +9,7 @@ import Html.Attributes exposing (alt, classList, href, placeholder, spellcheck, 
 import Html.Events exposing (onBlur, onClick, onFocus, onInput)
 import Json.Decode as Decode exposing (Decoder, bool, float, int, list, null, nullable, oneOf, string)
 import Json.Decode.Extra exposing (datetime)
-import Json.Decode.Pipeline exposing (required, requiredAt)
+import Json.Decode.Pipeline exposing (optional, required, requiredAt)
 import Json.Encode as Encode
 import List.Extra as LX
 import Maybe.Extra as MX
@@ -51,6 +51,7 @@ type alias User =
     { name : String
     , zone : Time.Zone
     , timescale : U.Timescale
+    , allocations : List U.Allocation
     }
 
 
@@ -322,6 +323,7 @@ update msg mdl =
                                 |> U.overwrite Home_ [ Leaves, Roots, Archives ]
                         , isCurrent = True
                       }
+                        |> schedule
                     , Cmd.none
                     )
 
@@ -366,6 +368,12 @@ update msg mdl =
                                     { mdl
                                         | msg = "User timescale modified : " ++ s
                                         , timescale = U.timescale s
+                                        , user =
+                                            let
+                                                user =
+                                                    mdl.user
+                                            in
+                                            { user | timescale = U.timescale s }
                                     }
                               )
                                 |> input0
@@ -413,6 +421,7 @@ update msg mdl =
                                 , view = Home_
                               }
                                 |> input0
+                                |> schedule
                             , Cmd.none
                             )
 
@@ -441,6 +450,7 @@ update msg mdl =
                                 |> String.join " "
                         , view = Home_
                       }
+                        |> schedule
                     , Cmd.none
                     )
 
@@ -574,7 +584,7 @@ singularize plural i =
 
 itemHeight : Int
 itemHeight =
-    40
+    32
 
 
 imgDir : String
@@ -746,7 +756,7 @@ viewItem mdl ( idx, item ) =
 
 priority : Float -> String
 priority x =
-    [ x < -1000, 1000 < x ] |> U.overwrite (U.signedDecimal 1 x) [ "--", "high" ]
+    [ x < -1000, 1000 < x ] |> U.overwrite (U.signedDecimal 1 x) [ "low", "high" ]
 
 
 weight : Float -> String
@@ -779,19 +789,24 @@ dotString mdl item =
             (\i ->
                 let
                     l =
-                        U.apply i inc mdl.asOf
+                        mdl.asOf |> U.apply i inc
 
                     r =
                         inc l
                 in
-                dot (Dotter l r) item
+                dot
+                    (Dotter
+                        (l |> Time.posixToMillis)
+                        (r |> Time.posixToMillis)
+                    )
+                    item
             )
         |> String.fromList
 
 
 type alias Dotter =
-    { l : Posix
-    , r : Posix
+    { l : Millis
+    , r : Millis
     }
 
 
@@ -799,7 +814,7 @@ dot : Dotter -> Item -> Char
 dot dotter item =
     let
         has =
-            MX.unwrap False (\t -> (dotter.l |> U.lt t) && (t |> U.lt dotter.r))
+            MX.unwrap False (\t -> t |> Time.posixToMillis |> U.between dotter.l dotter.r)
 
         hasDeadline =
             has item.deadline
@@ -807,15 +822,15 @@ dot dotter item =
         hasStartable =
             has item.startable
 
-        hasStripe =
-            item.stripes
+        hasSchedule =
+            item.schedules
                 |> List.any
-                    (\stripe ->
-                        ((stripe.l |> U.lt dotter.l) && (dotter.l |> U.lt stripe.r))
-                            || ((dotter.l |> U.lt stripe.l) && (stripe.l |> U.lt dotter.r))
+                    (\sch ->
+                        (dotter.l |> U.between sch.l sch.r)
+                            || (sch.l |> U.between dotter.l dotter.r)
                     )
     in
-    U.overwrite '.' [ '#', '[', ']' ] [ hasStripe, hasStartable, hasDeadline ]
+    U.overwrite '.' [ '#', '[', ']' ] [ hasSchedule, hasStartable, hasDeadline ]
 
 
 
@@ -823,7 +838,7 @@ dot dotter item =
 
 
 subscriptions : Mdl -> Sub Msg
-subscriptions mdl =
+subscriptions _ =
     Sub.batch
         [ Time.every 1000 Tick
         , decKey |> Decode.map (FromU << KeyDown) |> Events.onKeyDown
@@ -1145,13 +1160,7 @@ type alias Item =
     , priority : Maybe Float
     , weight : Maybe Float
     , link : Maybe String
-    , stripes : List Stripe
-    }
-
-
-type alias Stripe =
-    { l : Posix
-    , r : Posix
+    , schedules : List Schedule
     }
 
 
@@ -1168,11 +1177,180 @@ decItem =
         |> required "priority" (nullable float)
         |> required "weight" (nullable float)
         |> required "link" (nullable string)
-        |> required "stripes" (list decStripe)
+        |> optional "schedules" (list decSchedule) []
 
 
-decStripe : Decoder Stripe
-decStripe =
-    Decode.succeed Stripe
-        |> required "l" datetime
-        |> required "r" datetime
+decSchedule : Decoder Schedule
+decSchedule =
+    Decode.succeed Schedule
+        |> required "l" (datetime |> Decode.map Time.posixToMillis)
+        |> required "r" (datetime |> Decode.map Time.posixToMillis)
+
+
+schedule : Mdl -> Mdl
+schedule mdl =
+    let
+        daily =
+            mdl.user.allocations
+                |> List.map .hours
+                |> List.sum
+    in
+    if not (0 < daily) then
+        mdl
+
+    else
+        let
+            zone =
+                mdl.user.zone
+
+            from =
+                mdl.now |> TX.add TX.Day -1 zone
+
+            until =
+                let
+                    days =
+                        mdl.items
+                            |> List.filterMap .weight
+                            |> List.sum
+                            |> (\w -> round w // daily)
+                in
+                mdl.items
+                    |> List.filterMap .startable
+                    |> List.map Time.posixToMillis
+                    |> List.maximum
+                    |> MX.unwrap mdl.now Time.millisToPosix
+                    |> TX.add TX.Day (days + 1) zone
+
+            stripes =
+                TX.range TX.Day 1 zone from until
+                    |> List.concatMap
+                        (\day ->
+                            mdl.user.allocations
+                                |> List.map
+                                    (\alc ->
+                                        let
+                                            p =
+                                                day |> TX.posixToParts zone
+
+                                            l =
+                                                { p | hour = alc.open_h, minute = alc.open_m } |> TX.partsToPosix zone
+
+                                            r =
+                                                l |> TX.add TX.Hour alc.hours zone
+                                        in
+                                        Stripe
+                                            (l |> Time.posixToMillis)
+                                            (r |> Time.posixToMillis)
+                                    )
+                        )
+
+            newItems =
+                loop
+                    { cursor = mdl.now |> Time.posixToMillis
+                    , source = mdl.items
+                    , stripes = stripes
+                    , result = []
+                    }
+        in
+        { mdl | items = newItems }
+
+
+loop : Scheduler -> List Item
+loop sch =
+    case sch.source |> LX.uncons of
+        Nothing ->
+            sch.result |> List.reverse
+
+        Just ( item, items ) ->
+            let
+                sub =
+                    subLoop
+                        { cursor = item.startable |> MX.unwrap sch.cursor (\t -> max sch.cursor (t |> Time.posixToMillis))
+                        , stripes = sch.stripes
+                        , weight = item.weight |> MX.unwrap 0 (\w -> w * 60 * 60 * 1000 |> round)
+                        , result = []
+                        }
+            in
+            loop
+                { sch
+                    | cursor = sub.cursor
+                    , source = items
+                    , stripes = sub.stripes
+                    , result = { item | schedules = sub.result } :: sch.result
+                }
+
+
+type alias Scheduler =
+    { cursor : Millis
+    , source : List Item
+    , stripes : List Stripe
+    , result : List Item
+    }
+
+
+subLoop : SubScheduler -> SubScheduler
+subLoop sub =
+    let
+        width =
+            \stripe -> stripe.r - stripe.l
+    in
+    case sub.stripes |> LX.uncons of
+        Nothing ->
+            sub
+
+        Just ( stripe, stripes ) ->
+            if stripe.r < sub.cursor then
+                subLoop { sub | stripes = stripes }
+
+            else if sub.cursor |> U.between stripe.l stripe.r then
+                if (stripe.r - sub.cursor) < sub.weight then
+                    subLoop
+                        { sub
+                            | stripes = stripes
+                            , weight = sub.weight - (stripe.r - sub.cursor)
+                            , result = Schedule sub.cursor stripe.r :: sub.result
+                        }
+
+                else
+                    { sub
+                        | cursor = sub.cursor + sub.weight
+                        , result = Schedule sub.cursor (sub.cursor + sub.weight) :: sub.result
+                    }
+
+            else if width stripe < sub.weight then
+                subLoop
+                    { sub
+                        | stripes = stripes
+                        , weight = sub.weight - width stripe
+                        , result = Schedule stripe.l stripe.r :: sub.result
+                    }
+
+            else
+                { sub
+                    | cursor = stripe.l + sub.weight
+                    , result = Schedule stripe.l (stripe.l + sub.weight) :: sub.result
+                }
+
+
+type alias SubScheduler =
+    { cursor : Millis
+    , stripes : List Stripe
+    , weight : Millis
+    , result : List Schedule
+    }
+
+
+type alias Schedule =
+    { l : Millis
+    , r : Millis
+    }
+
+
+type alias Stripe =
+    { l : Millis
+    , r : Millis
+    }
+
+
+type alias Millis =
+    Int
