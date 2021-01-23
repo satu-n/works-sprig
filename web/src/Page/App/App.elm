@@ -128,7 +128,6 @@ type FromS
     = LoggedOut U.HttpResultAny
     | Homed (U.HttpResult ResHome)
     | Texted (U.HttpResult ResText)
-    | Cloned (U.HttpResult ResClone)
     | Execed (U.HttpResult ResExec)
     | Focused (U.HttpResult ResFocus)
     | Starred Tid U.HttpResultAny
@@ -206,7 +205,16 @@ update msg mdl =
                                             ( mdl, Exec { tids = mdl.selected, revert = mdl.keyMod.shift } |> request )
 
                                         'c' ->
-                                            ( mdl, Clone mdl.selected |> request )
+                                            ( { mdl
+                                                | input = mdl.selected |> clone mdl
+                                                , msg =
+                                                    [ mdl.selected |> List.length |> singularize "items"
+                                                    , "cloned."
+                                                    ]
+                                                        |> String.join " "
+                                              }
+                                            , Cmd.none
+                                            )
 
                                         'a' ->
                                             ( mdl, Home (Just "archives") |> request )
@@ -261,7 +269,7 @@ update msg mdl =
 
                                 -- TODO get selectionStart of textarea
                                 Tab ->
-                                    ( mdl.isInput |> BX.ifElse { mdl | input = mdl.input ++ "    " } mdl, Cmd.none )
+                                    ( mdl, Cmd.none )
 
                                 ArrowDown ->
                                     ( mdl.keyMod.ctrl |> BX.ifElse { mdl | isInputFS = True } mdl, Cmd.none )
@@ -356,7 +364,7 @@ update msg mdl =
                         ResTextC (ResUser (ResInfo_ r)) ->
                             ( { mdl
                                 | msg =
-                                    [ "Since " ++ U.clock mdl.user.zone r.since
+                                    [ "Since " ++ U.clock False mdl.user.zone r.since
                                     , "Executed " ++ U.int r.executed
                                     , r.tz
                                     ]
@@ -473,18 +481,6 @@ update msg mdl =
                             , Cmd.none
                             )
 
-                Cloned (Ok ( _, res )) ->
-                    ( { mdl
-                        | input = res.text
-                        , msg =
-                            [ res.count |> singularize "items"
-                            , "cloned."
-                            ]
-                                |> String.join " "
-                      }
-                    , Cmd.none
-                    )
-
                 Execed (Ok ( _, res )) ->
                     ( { mdl
                         | items = res.items
@@ -529,9 +525,6 @@ update msg mdl =
                     handle mdl e
 
                 Texted (Err e) ->
-                    handle mdl e
-
-                Cloned (Err e) ->
                     handle mdl e
 
                 Execed (Err e) ->
@@ -773,6 +766,32 @@ schedule mdl =
         { mdl | items = newItems }
 
 
+clone : Mdl -> List Tid -> String
+clone mdl ids =
+    let
+        cloneBy : Time.Zone -> Item -> String
+        cloneBy zone item =
+            [ [ item.id |> (\id -> "#" ++ U.int id)
+              , item.isStarred |> BX.ifElse "*" ""
+              , item.title
+              , item.startable |> MX.unwrap "" (\t -> U.clock True zone t ++ "-")
+              , item.deadline |> MX.unwrap "" (\t -> "-" ++ U.clock True zone t)
+              , item.weight |> MX.unwrap "" (\w -> "$" ++ String.fromFloat w)
+              , item.assign |> (++) "@"
+              ]
+                |> List.filter (String.isEmpty >> not)
+                |> String.join " "
+            , item.link |> Maybe.withDefault ""
+            ]
+                |> List.filter (String.isEmpty >> not)
+                |> String.join "\n"
+    in
+    mdl.items
+        |> List.filter (\item -> List.member item.id ids)
+        |> List.map (cloneBy mdl.user.zone)
+        |> String.join "\n"
+
+
 
 -- VIEW
 
@@ -876,7 +895,7 @@ view mdl =
                         , th [ item__ "star" ] []
                         , th [ item__ "title" ] []
                         , th [ item__ "startable" ] [ U.strTimescale mdl.timescale |> text ]
-                        , th [ item__ "bar" ] [ span [] [ "As of " ++ U.clock mdl.user.zone mdl.asOf |> text ] ]
+                        , th [ item__ "bar" ] [ span [] [ "As of " ++ U.clock False mdl.user.zone mdl.asOf |> text ] ]
                         , th [ item__ "deadline" ] [ U.fmtDT mdl.timescale |> text ]
                         , th [ item__ "priority" ] []
                         , th [ item__ "weight" ] []
@@ -1106,7 +1125,6 @@ type Req
     = Logout
     | Home (Maybe String)
     | Text String
-    | Clone (List Tid)
     | Exec { tids : List Tid, revert : Bool }
     | Focus Tid
     | Star Tid
@@ -1133,11 +1151,8 @@ request req =
         Text _ ->
             U.post (EP.Tasks |> EP.App_) (enc req) (FromS << Texted) decText
 
-        Clone _ ->
-            U.put (EP.Tasks |> EP.App_) (enc req) (FromS << Cloned) decClone
-
         Exec _ ->
-            U.delete (EP.Tasks |> EP.App_) (enc req) (FromS << Execed) decExec
+            U.put (EP.Tasks |> EP.App_) (enc req) (FromS << Execed) decExec
 
         Focus tid ->
             U.get (EP.Task tid |> EP.App_) [] (FromS << Focused) decFocus
@@ -1152,10 +1167,6 @@ enc req =
         Text text ->
             Encode.object
                 [ ( "text", Encode.string text ) ]
-
-        Clone tids ->
-            Encode.object
-                [ ( "tasks", Encode.list Encode.int tids ) ]
 
         Exec { tids, revert } ->
             Encode.object
@@ -1284,23 +1295,6 @@ decText =
             |> requiredAt [ "Tasks", "info", "updated" ] int
             |> Decode.map ResTextT_
         ]
-
-
-
--- request clone
-
-
-type alias ResClone =
-    { text : String
-    , count : Int
-    }
-
-
-decClone : Decoder ResClone
-decClone =
-    Decode.succeed ResClone
-        |> required "text" string
-        |> requiredAt [ "info", "count" ] int
 
 
 

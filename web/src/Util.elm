@@ -5,7 +5,7 @@ import Date
 import Dict
 import EndPoint as EP
 import Html exposing (..)
-import Html.Attributes exposing (classList, placeholder, type_, value)
+import Html.Attributes exposing (classList, for, placeholder, type_, value)
 import Html.Events exposing (onInput)
 import Http
 import Http.Detailed
@@ -278,11 +278,17 @@ fmtDT t =
             "?"
 
 
-clock : Time.Zone -> Time.Posix -> String
-clock z t =
+clock : Bool -> Time.Zone -> Time.Posix -> String
+clock forInput z t =
     let
+        d =
+            Date.fromPosix z t
+
         date =
-            Date.fromPosix z t |> Date.format "yyyy/MM/dd EEE "
+            d |> Date.format "yyyy/MM/dd"
+
+        weekday =
+            d |> Date.format "EEE"
 
         time =
             [ Time.toHour
@@ -292,7 +298,10 @@ clock z t =
                     (\to -> to z t |> String.fromInt |> String.padLeft 2 '0')
                 |> String.join ":"
     in
-    date ++ time
+    forInput
+        |> BX.ifElse
+            ([ date, time ] |> String.join "T")
+            ([ date, weekday, time ] |> String.join " ")
 
 
 strDT : Timescale -> Time.Zone -> Time.Posix -> String
