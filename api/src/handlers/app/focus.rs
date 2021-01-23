@@ -3,7 +3,7 @@ use diesel::prelude::*;
 use serde::Serialize;
 
 use crate::errors;
-use crate::models;
+use crate::models::{self, Selectable};
 
 #[derive(Serialize)]
 pub struct ResBody {
@@ -17,5 +17,47 @@ pub async fn focus(
     user: models::AuthedUser,
     pool: web::Data<models::Pool>,
 ) -> Result<HttpResponse, errors::ServiceError> {
-    Ok(HttpResponse::Ok().finish())
+
+    let tid = tid.into_inner();
+
+    let res_body = web::block(move || {
+        use diesel::dsl::exists;
+        use crate::schema::arrows::dsl::*;
+        use crate::schema::permissions::dsl::*;
+        use crate::schema::tasks::dsl::{tasks, id, assign};
+        use crate::schema::users::dsl::users;
+
+        let conn = pool.get().unwrap();
+
+        let query = tasks
+        .filter(exists(permissions
+            .filter(subject.eq(&user.id))
+            .filter(object.eq(assign))
+        ))
+        .inner_join(users)
+        .select(models::SelTask::columns());
+
+        let task = query
+        .filter(id.eq(&tid))
+        .first::<models::SelTask>(&conn)?
+        .to_res();
+
+        let pred = query
+        .filter(exists(arrows.filter(source.eq(id)).filter(target.eq(&tid))))
+        .load::<models::SelTask>(&conn)?
+        .into_iter().map(|t| t.to_res()).collect();
+
+        let succ = query
+        .filter(exists(arrows.filter(source.eq(&tid)).filter(target.eq(id))))
+        .load::<models::SelTask>(&conn)?
+        .into_iter().map(|t| t.to_res()).collect();
+
+        Ok(ResBody {
+            task: task,
+            pred: pred,
+            succ: succ,
+        })
+    }).await?;
+
+    Ok(HttpResponse::Ok().json(res_body))
 }
