@@ -352,22 +352,25 @@ pub struct EasyTime {
     pub m: Option<i32>,
 }
 impl EasyDateTime {
-    fn complete(&self, tz: &Tz) -> NaiveDateTime {
+    fn complete(&self, tz: &Tz) -> Option<NaiveDateTime> {
         let now = Utc::now().with_timezone(tz).naive_local();
         let mut inherit = false;
-        let time = match &self.time {
-            None => NaiveTime::from_hms(0, 0, 0),
+        let time_opt = match &self.time {
+            None => Some(NaiveTime::from_hms(0, 0, 0)),
             Some(time) => time.complete(&mut inherit, &now),
         };
-        let date = match &self.date {
-            None => now.date(),
+        let date_opt = match &self.date {
+            None => Some(now.date()),
             Some(date) => date.complete(&mut inherit, &now),
         };
-        NaiveDateTime::new(date, time)
+        if let (Some(date), Some(time)) = (date_opt, time_opt) {
+            return Some(NaiveDateTime::new(date, time))
+        }
+        None
     }
 }
 impl EasyTime {
-    fn complete(&self, inherit: &mut bool, now: &NaiveDateTime) -> NaiveTime {
+    fn complete(&self, inherit: &mut bool, now: &NaiveDateTime) -> Option<NaiveTime> {
         let m = match self.m {
             None => 0,
             Some(m) => { *inherit = true; m as u32},
@@ -377,11 +380,11 @@ impl EasyTime {
             None => 0,
             Some(h) => { *inherit = true; h as u32},
         };
-        NaiveTime::from_hms(h, m, 0)
+        NaiveTime::from_hms_opt(h, m, 0)
     }
 }
 impl EasyDate {
-    fn complete(&self, inherit: &mut bool, now: &NaiveDateTime) -> NaiveDate {
+    fn complete(&self, inherit: &mut bool, now: &NaiveDateTime) -> Option<NaiveDate> {
         let d = match self.d {
             None if *inherit => now.format("%d").to_string().parse::<u32>().unwrap(),
             None => 1,
@@ -395,19 +398,23 @@ impl EasyDate {
         let y = self.y.unwrap_or(
             now.format("%Y").to_string().parse::<i32>().unwrap()
         );
-        NaiveDate::from_ymd(y, m, d)
+        NaiveDate::from_ymd_opt(y, m, d)
     }
 }
-
 impl AuthedUser {
     pub fn globalize(&self, easy: &EasyDateTime
     ) -> Result<DateTime<Utc>, errors::ServiceError> {
-        let local = easy.complete(&self.tz);
-        if let Some(dt) = self.tz.from_local_datetime(&local).single() {
-            return Ok(dt.with_timezone(&Utc))
+        let lower = Utc.ymd(1000, 1, 1).and_hms(0, 0, 0);
+        let upper = Utc.ymd(9999, 1, 1).and_hms(0, 0, 0);
+        if let Some(local) = easy.complete(&self.tz) {
+            if let Some(dt) = self.tz.from_local_datetime(&local).single() {
+                if lower < dt && dt < upper {
+                    return Ok(dt.with_timezone(&Utc))
+                }
+                return Err(errors::ServiceError::BadRequest("some dates are out of range.".into()))
+            }
         }
-        Err(errors::ServiceError::BadRequest(
-            "failed to interpret datetime.".into()))
+        Err(errors::ServiceError::BadRequest("failed to interpret datetime.".into()))
     }
     pub fn localize(&self, dt: &DateTime<Utc>) -> String {
         let local = dt.with_timezone(&self.tz).naive_local();
@@ -427,14 +434,12 @@ impl Selectable for Allocation {
         allocations::hours,
     )}
 }
-
 #[derive(Debug, PartialEq, Serialize)]
 pub struct ResAllocation {
     pub open_h: i32,
     pub open_m: i32,
     pub hours: i32,
 }
-
 impl From<Allocation> for ResAllocation {
     fn from(alc: Allocation) -> Self {
         Self {

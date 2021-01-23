@@ -20,7 +20,10 @@ impl FromStr for Req {
         let req = req_().parse(s)?.0;
         if let Req::Tasks(ts) = &req {
             if ts.tasks.iter().any(|t| t.attribute.title.is_empty()) {
-                return Err(Self::Err::BadRequest("there is a task with no title.".into()))
+                return Err(Self::Err::BadRequest("there is a item with no title.".into()))
+            }
+            if ts.tasks.iter().filter_map(|t| t.attribute.weight).any(|w| !(w < 10_000.)) {
+                return Err(Self::Err::BadRequest("there is a too heavy item.".into()))
             }
         }
         Ok(req)
@@ -924,10 +927,10 @@ mod tests {
     #[test]
     fn t_date_() {
         let t_00 = date_().easy_parse("//");
-        let t_01 = date_().easy_parse( // TODO limit to "9999/12/31" in following process
+        let t_01 = date_().easy_parse(
             "294277/01/01"
         );
-        let t_02 = date_().easy_parse( // TODO limit to "1000/01/01" in following process
+        let t_02 = date_().easy_parse(
             "0001/01/01"
         );
         let t_10 = date_().easy_parse("");
