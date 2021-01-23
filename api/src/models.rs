@@ -238,7 +238,6 @@ impl From<i32> for Tid {
 
 impl Tid {
     pub fn is(&self, lr: LR, arrows: &Arrows) -> bool {
-        // FIXME isolated node
         arrows.arrows.iter().all(|arw| arw.trace_to(!lr) != self.id)
     }
     pub fn paths_to(&self, lr: LR, arrows: &Arrows) -> Vec<Path> {

@@ -410,8 +410,7 @@ impl ReqAllocation {
     fn verify(&self,
         user: &models::AuthedUser,
     ) -> Result<models::Allocation, errors::ServiceError> {
-        if let Ok(time) = NaiveTime::parse_from_str(
-            &*format!("{}:{}", self.open_h, self.open_m), "%H:%M") {
+        if let Some(time) = NaiveTime::from_hms_opt(self.open_h as u32, self.open_m as u32, 0) {
             if (1..=24).contains(&self.hours) {
                 return Ok(models::Allocation {
                     owner: user.id,
@@ -750,7 +749,7 @@ impl Acceptor {
             .first::<models::Task>(conn)
             .is_err() {
                 return Err(errors::ServiceError::BadRequest(format!(
-                    "#{}: task not found, or no edit permission.",
+                    "#{}: item not found, or no edit permission.",
                     id,
                 )))
             }

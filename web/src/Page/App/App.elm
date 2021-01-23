@@ -213,7 +213,7 @@ update msg mdl =
                                                     ]
                                                         |> String.join " "
                                               }
-                                            , Cmd.none
+                                            , U.idBy "app" "input" |> Dom.focus |> Task.attempt (\_ -> NoOp)
                                             )
 
                                         'a' ->
@@ -370,12 +370,12 @@ update msg mdl =
                                     ]
                                         |> String.join ", "
                               }
-                                |> input0
                             , Cmd.none
                             )
+                                |> input0
 
                         ResTextC (ResUser (ResModify m)) ->
-                            ( (case m of
+                            ( case m of
                                 Email s ->
                                     { mdl | msg = "User email modified: " ++ s }
 
@@ -431,10 +431,9 @@ update msg mdl =
                                             in
                                             { user | allocations = alcs }
                                     }
-                              )
-                                |> input0
                             , Cmd.none
                             )
+                                |> input0
 
                         ResTextC (ResSearch_ r) ->
                             ( { mdl
@@ -460,9 +459,9 @@ update msg mdl =
                                         |> String.join " "
                                 , view = Tutorial
                               }
-                                |> input0
                             , Cmd.none
                             )
+                                |> input0
 
                         ResTextT_ r ->
                             ( { mdl
@@ -476,10 +475,10 @@ update msg mdl =
                                         |> String.join " "
                                 , view = Home_
                               }
-                                |> input0
                                 |> schedule
                             , Cmd.none
                             )
+                                |> input0
 
                 Execed (Ok ( _, res )) ->
                     ( { mdl
@@ -601,9 +600,9 @@ setKeyMod m b mod =
             { mod | shift = b }
 
 
-input0 : Mdl -> Mdl
-input0 mdl =
-    { mdl | input = "" }
+input0 : ( Mdl, Cmd Msg ) -> ( Mdl, Cmd Msg )
+input0 ( mdl, cmd ) =
+    ( { mdl | input = "" }, Cmd.batch [ cmd, U.idBy "app" "input" |> Dom.blur |> Task.attempt (\_ -> NoOp) ] )
 
 
 singularize : String -> Int -> String
@@ -970,12 +969,12 @@ viewItem mdl ( idx, item ) =
 
 strPriority : Float -> String
 strPriority x =
-    [ x < -1000, 1000 < x ] |> U.overwrite (U.signedDecimal 1 x) [ "low", "high" ]
+    [ not (-1000 < x), not (x < 1000) ] |> U.overwrite (U.signedDecimal 1 x) [ "low", "high" ]
 
 
 strWeight : Float -> String
 strWeight x =
-    [ 10000 < x ] |> U.overwrite (U.decimal 1 x) [ "heavy" ]
+    [ not (x < 10000) ] |> U.overwrite (U.decimal 1 x) [ "heavy" ]
 
 
 isOverdue : Mdl -> Item -> Bool
