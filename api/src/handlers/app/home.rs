@@ -156,14 +156,8 @@ impl Sorter {
         }).collect::<Vec<(i64, i64)>>().to_interval_set()
     }
     fn splice(&self, dt: DateTime<Utc>) -> i64 {
-        // TODO which one works better?
-        // let today = self.now.date();
-        // let days = dt.signed_duration_since(self.now).num_days();
-
-        // (self.now.timestamp(), dt.timestamp()).to_interval_set()
-        // .intersection(&self.allocations_set(today, days)).size() as i64
-
-        let days = dt.signed_duration_since(self.now).num_days();
+        let mut days = dt.signed_duration_since(self.now).num_days();
+        if dt < self.now { days -= 1 } // floor negative
         let daily = self.allocations.iter().map(|alc| alc.hours as i64).sum::<i64>() * 3600;
         let adjust = {
             let within_last_1 = (
