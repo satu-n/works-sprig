@@ -10,7 +10,6 @@ use crate::errors;
 use crate::models::{self, Selectable};
 use crate::schema::{tasks, users};
 use crate::utils;
-use super::home;
 
 #[derive(Deserialize)]
 pub struct ReqBody {
@@ -21,9 +20,8 @@ pub struct ReqBody {
 enum ResBody {
     Command(ResCommand),
     Tasks {
-        // TODO redirect home 
-        tasks: Vec<models::ResTask>,
-        info: TasksInfo,
+        created: i32,
+        updated: i32,
     },
 }
 
@@ -50,12 +48,7 @@ pub async fn text(
                 Ok(ResBody::Command(res_command))
             },
             Req::Tasks(tasks) => {
-                let info = tasks.read(&user)?.accept(&user, &conn)?.upsert(&conn)?;
-                let res_tasks =  home::Config::Home.query(&user, &conn)?;
-                Ok(ResBody::Tasks {
-                    tasks: res_tasks,
-                    info: info,
-                })
+                Ok(tasks.read(&user)?.accept(&user, &conn)?.upsert(&conn)?)
             }
         }
     }).await?;
@@ -145,12 +138,6 @@ pub enum Timescale {
     Minutes,
     Minute,
     Second,
-}
-
-#[derive(Serialize)]
-struct TasksInfo {
-    created: i32,
-    updated: i32,
 }
 
 #[derive(Debug, Default, PartialEq, PartialOrd)]
@@ -819,7 +806,7 @@ struct AltTask {
 impl Upserter {
     fn upsert(mut self,
         conn: &models::Conn,
-    ) -> Result<TasksInfo, errors::ServiceError> {
+    ) -> Result<ResBody, errors::ServiceError> {
         use crate::schema::arrows::dsl::arrows;
         use crate::schema::tasks::dsl::tasks;
 
@@ -847,7 +834,7 @@ impl Upserter {
         }
         diesel::insert_into(arrows).values(&self.arrows.arrows).execute(conn)?;
 
-        Ok(TasksInfo {
+        Ok(ResBody::Tasks {
             created: created,
             updated: updated,
         })

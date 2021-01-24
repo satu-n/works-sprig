@@ -456,18 +456,16 @@ update msg mdl =
 
                         ResTextT_ r ->
                             ( { mdl
-                                | items = r.items
-                                , msg =
+                                | msg =
                                     [ r.created |> singularize "items"
                                     , "created."
                                     , r.updated |> singularize "items"
                                     , "updated."
                                     ]
                                         |> String.join " "
-                                , view = Home_
+                                , msgFix = True
                               }
-                                |> schedule
-                            , Cmd.none
+                            , Home Nothing |> request
                             )
                                 |> input0
 
@@ -1223,8 +1221,7 @@ type alias ResTutorial =
 
 
 type alias ResTextT =
-    { items : List Item
-    , created : Int
+    { created : Int
     , updated : Int
     }
 
@@ -1271,9 +1268,8 @@ decText =
                     ]
                 )
         , Decode.succeed ResTextT
-            |> requiredAt [ "Tasks", "tasks" ] (list decItem)
-            |> requiredAt [ "Tasks", "info", "created" ] int
-            |> requiredAt [ "Tasks", "info", "updated" ] int
+            |> requiredAt [ "Tasks", "created" ] int
+            |> requiredAt [ "Tasks", "updated" ] int
             |> Decode.map ResTextT_
         ]
 
