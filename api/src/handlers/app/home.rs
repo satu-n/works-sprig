@@ -20,7 +20,6 @@ pub struct Q {
 #[derive(Serialize)]
 struct ResBody {
     tasks: Vec<models::ResTask>,
-    query: Q,
 }
 
 pub async fn home(
@@ -31,12 +30,10 @@ pub async fn home(
 
     let res_body = web::block(move || {
         let conn = pool.get().unwrap();
-        let query = q.into_inner();
-        let res_tasks = query.config().query(&user, &conn)?;
+        let res_tasks = q.into_inner().config().query(&user, &conn)?;
 
         Ok(ResBody {
             tasks: res_tasks,
-            query: query,
         })
     }).await?;
 

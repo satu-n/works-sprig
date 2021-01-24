@@ -1,4 +1,4 @@
-// pub mod exec;
+pub mod exec;
 pub mod focus;
 pub mod home;
 pub mod star;

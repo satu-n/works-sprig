@@ -82,7 +82,7 @@ fn auth_protected(cfg: &mut web::ServiceConfig) {
     .service(web::resource("/tasks")
         .route(web::get().to(handlers::app::home::home))
         .route(web::post().to(handlers::app::text::text))
-        // .route(web::put().to(handlers::app::exec::exec))
+        .route(web::put().to(handlers::app::exec::exec))
     )
     .service(web::resource("/task/{tid}")
         .route(web::get().to(handlers::app::focus::focus))

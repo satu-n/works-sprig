@@ -10,14 +10,13 @@ pub async fn star(
     pool: web::Data<models::Pool>,
 ) -> Result<HttpResponse, errors::ServiceError> {
 
-    let tid = tid.into_inner();
-
     let _ = web::block(move || {
         use diesel::dsl::{select, exists};
         use crate::schema::permissions::dsl::*;
         use crate::schema::tasks::dsl::{tasks, is_starred};
 
         let conn = pool.get().unwrap();
+        let tid = tid.into_inner();
         let task = tasks.find(&tid).first::<models::Task>(&conn)?;
         if select(exists(permissions
                 .filter(subject.eq(&user.id))

@@ -33,11 +33,12 @@ type alias Mdl =
 
     -- TODO , inputLog : List String
     , msg : String
+    , msgFix : Bool
     , items : List Item
-    , cursor : Index
     , selected : List Tid
-    , timescale : U.Timescale
+    , cursor : Index
     , view : View
+    , timescale : U.Timescale
     , now : Posix
     , asOf : Posix
     , isCurrent : Bool
@@ -85,11 +86,12 @@ init user =
     ( { user = user
       , input = ""
       , msg = [ "Hello", user.name ] |> String.join " "
+      , msgFix = False
       , items = []
-      , cursor = 0
       , selected = []
-      , timescale = U.timescale "D"
+      , cursor = 0
       , view = None
+      , timescale = user.timescale
       , now = Time.millisToPosix 0
       , asOf = Time.millisToPosix 0
       , isCurrent = True
@@ -126,10 +128,10 @@ type FromU
 
 type FromS
     = LoggedOut U.HttpResultAny
-    | Homed (U.HttpResult ResHome)
+    | Homed (Maybe String) (U.HttpResult ResHome)
     | Texted (U.HttpResult ResText)
-    | Execed (U.HttpResult ResExec)
-    | Focused (U.HttpResult ResFocus)
+    | Execed Bool (U.HttpResult ResExec)
+    | Focused Item (U.HttpResult ResFocus)
     | Starred Tid U.HttpResultAny
 
 
@@ -199,10 +201,13 @@ update msg mdl =
                                             ( mdl, (\item -> Star item.id |> request) |> forTheItem mdl )
 
                                         'f' ->
-                                            ( mdl, (\item -> Focus item.id |> request) |> forTheItem mdl )
+                                            ( mdl, (\item -> Focus item |> request) |> forTheItem mdl )
 
                                         'e' ->
                                             ( mdl, Exec { tids = mdl.selected, revert = mdl.keyMod.shift } |> request )
+
+                                        'v' ->
+                                            ( mdl, Exec { tids = mdl.selected, revert = True } |> request )
 
                                         'c' ->
                                             ( { mdl
@@ -307,50 +312,57 @@ update msg mdl =
                 LoggedOut (Ok _) ->
                     ( mdl, U.cmd Goto P.LP )
 
-                Homed (Ok ( _, res )) ->
+                Homed option (Ok ( _, res )) ->
                     let
                         view_ =
                             [ "leaves"
                             , "roots"
                             , "archives"
                             ]
-                                |> List.map (\s -> res.option == Just s)
+                                |> List.map (\s -> option == Just s)
                                 |> U.overwrite Home_ [ Leaves, Roots, Archives ]
 
                         items =
-                            { mdl | items = res.items }
-                                |> schedule
-                                |> (\m ->
-                                        m.items
-                                            |> List.filter
-                                                (case view_ of
-                                                    Leaves ->
-                                                        .isLeaf
+                            (view_ == Archives)
+                                |> BX.ifElse res
+                                    ({ mdl | items = res }
+                                        |> schedule
+                                        |> (\m ->
+                                                m.items
+                                                    |> List.filter
+                                                        (case view_ of
+                                                            Leaves ->
+                                                                .isLeaf
 
-                                                    Roots ->
-                                                        .isRoot
+                                                            Roots ->
+                                                                .isRoot
 
-                                                    _ ->
-                                                        \_ -> True
-                                                )
-                                   )
+                                                            _ ->
+                                                                \_ -> True
+                                                        )
+                                           )
+                                    )
                     in
                     ( { mdl
-                        | items = items
-                        , selected = []
-                        , msg =
-                            items
-                                |> List.isEmpty
-                                |> (&&) (view_ == Home_)
-                                |> BX.ifElse "Nothing to execute, working tree clean."
-                                    ([ res.option |> MX.unwrap False ((==) "archives") |> BX.ifElse "Last" ""
-                                     , items |> List.length |> singularize (res.option |> Maybe.withDefault "items")
-                                     , "here."
-                                     ]
-                                        |> String.join " "
+                        | msg =
+                            mdl.msgFix
+                                |> BX.ifElse mdl.msg
+                                    (items
+                                        |> List.isEmpty
+                                        |> (&&) (view_ == Home_)
+                                        |> BX.ifElse "Nothing to execute, working tree clean."
+                                            ([ option |> MX.unwrap False ((==) "archives") |> BX.ifElse "Last" ""
+                                             , items |> List.length |> singularize (option |> Maybe.withDefault "items")
+                                             , "here."
+                                             ]
+                                                |> String.join " "
+                                            )
                                     )
-                        , timescale = mdl.user.timescale
+                        , msgFix = False
+                        , items = items
+                        , selected = []
                         , view = view_
+                        , timescale = mdl.user.timescale
                         , isCurrent = True
                       }
                     , Cmd.none
@@ -480,32 +492,32 @@ update msg mdl =
                             )
                                 |> input0
 
-                Execed (Ok ( _, res )) ->
+                Execed revert (Ok ( _, res )) ->
                     ( { mdl
-                        | items = res.items
-                        , msg =
-                            [ [ res.count |> singularize "items"
-                              , res.revert |> BX.ifElse "reverted" "executed"
-                              ]
-                                |> String.join " "
-                            , [ "(", U.int res.chain, "chained", ")." ] |> String.join " "
+                        | msg =
+                            [ res.count |> singularize "items"
+                            , revert |> BX.ifElse "reverted" "executed"
+                            , "("
+                            , U.int res.chain
+                            , "chained"
+                            , ")."
                             ]
                                 |> String.join " "
-                        , view = Home_
+                        , msgFix = True
                       }
-                        |> schedule
-                    , Cmd.none
+                    , Home Nothing |> request
                     )
 
-                Focused (Ok ( _, res )) ->
+                Focused item (Ok ( _, res )) ->
                     ( { mdl
-                        | items = res.pred ++ (res.item :: res.succ)
-                        , msg =
-                            [ "#" ++ U.int res.item.id
+                        | msg =
+                            [ "#" ++ U.int item.id
                             , "Pred." ++ U.len res.pred
                             , "Succ." ++ U.len res.succ
                             ]
                                 |> String.join " "
+                        , items = res.pred ++ ({ item | schedules = [], priority = Nothing } :: res.succ) -- TODO not so beautiful
+                        , selected = []
                         , cursor = List.length res.pred
                         , view = Focus_
                       }
@@ -520,16 +532,16 @@ update msg mdl =
                 LoggedOut (Err e) ->
                     handle mdl e
 
-                Homed (Err e) ->
+                Homed _ (Err e) ->
                     handle mdl e
 
                 Texted (Err e) ->
                     handle mdl e
 
-                Execed (Err e) ->
+                Execed _ (Err e) ->
                     handle mdl e
 
-                Focused (Err e) ->
+                Focused _ (Err e) ->
                     handle mdl e
 
                 Starred _ (Err e) ->
@@ -955,7 +967,7 @@ viewItem mdl ( idx, item ) =
         , td [ bem "star" [], Request (Star item.id) |> onClick ] [ item.isStarred |> BX.ifElse "★" "☆" |> text ]
         , td [ bem "title" [] ] [ span [] [ item.title |> text |> (\t -> item.link |> MX.unwrap t (\l -> a [ href l, target "_blank" ] [ t ])) ] ]
         , td [ bem "startable" [] ] [ item.startable |> MX.unwrap "-" (U.strDT mdl.timescale mdl.user.zone) |> text ]
-        , td [ bem "bar" [], Request (Focus item.id) |> onClick ] [ item |> dotString mdl |> text ]
+        , td [ bem "bar" [], Request (Focus item) |> onClick ] [ item |> dotString mdl |> text ]
         , td
             [ bem "deadline" [ ( "overdue", item |> isOverdue mdl ) ] ]
             [ item.deadline |> MX.unwrap "-" (U.strDT mdl.timescale mdl.user.zone) |> text ]
@@ -1125,7 +1137,7 @@ type Req
     | Home (Maybe String)
     | Text String
     | Exec { tids : List Tid, revert : Bool }
-    | Focus Tid
+    | Focus Item
     | Star Tid
 
 
@@ -1145,36 +1157,31 @@ request req =
                         _ ->
                             []
             in
-            U.get (EP.Tasks |> EP.App_) query (FromS << Homed) decHome
+            U.get (EP.Tasks |> EP.App_) query (FromS << Homed option) decHome
 
-        Text _ ->
-            U.post (EP.Tasks |> EP.App_) (enc req) (FromS << Texted) decText
+        Text text ->
+            let
+                json =
+                    Encode.object
+                        [ ( "text", Encode.string text ) ]
+            in
+            U.post (EP.Tasks |> EP.App_) json (FromS << Texted) decText
 
-        Exec _ ->
-            U.put (EP.Tasks |> EP.App_) (enc req) (FromS << Execed) decExec
+        Exec { tids, revert } ->
+            let
+                json =
+                    Encode.object
+                        [ ( "tasks", Encode.list Encode.int tids )
+                        , ( "revert", Encode.bool revert )
+                        ]
+            in
+            U.put (EP.Tasks |> EP.App_) json (FromS << Execed revert) decExec
 
-        Focus tid ->
-            U.get (EP.Task tid |> EP.App_) [] (FromS << Focused) decFocus
+        Focus item ->
+            U.get (EP.Task item.id |> EP.App_) [] (FromS << Focused item) decFocus
 
         Star tid ->
             U.put_ (EP.Task tid |> EP.App_) (FromS << Starred tid)
-
-
-enc : Req -> Encode.Value
-enc req =
-    case req of
-        Text text ->
-            Encode.object
-                [ ( "text", Encode.string text ) ]
-
-        Exec { tids, revert } ->
-            Encode.object
-                [ ( "tasks", Encode.list Encode.int tids )
-                , ( "revert", Encode.bool revert )
-                ]
-
-        _ ->
-            Encode.null
 
 
 
@@ -1182,16 +1189,12 @@ enc req =
 
 
 type alias ResHome =
-    { items : List Item
-    , option : Maybe String
-    }
+    List Item
 
 
 decHome : Decoder ResHome
 decHome =
-    Decode.succeed ResHome
-        |> required "tasks" (list decItem)
-        |> requiredAt [ "query", "option" ] (nullable string)
+    Decode.field "tasks" (list decItem)
 
 
 
@@ -1301,20 +1304,16 @@ decText =
 
 
 type alias ResExec =
-    { items : List Item
-    , count : Int
+    { count : Int
     , chain : Int
-    , revert : Bool
     }
 
 
 decExec : Decoder ResExec
 decExec =
     Decode.succeed ResExec
-        |> required "tasks" (list decItem)
-        |> requiredAt [ "info", "count" ] int
-        |> requiredAt [ "info", "chain" ] int
-        |> requiredAt [ "info", "revert" ] bool
+        |> required "count" int
+        |> required "chain" int
 
 
 
@@ -1322,8 +1321,7 @@ decExec =
 
 
 type alias ResFocus =
-    { item : Item
-    , pred : List Item
+    { pred : List Item
     , succ : List Item
     }
 
@@ -1331,7 +1329,6 @@ type alias ResFocus =
 decFocus : Decoder ResFocus
 decFocus =
     Decode.succeed ResFocus
-        |> required "task" decItem
         |> required "pred" (list decItem)
         |> required "succ" (list decItem)
 

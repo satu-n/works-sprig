@@ -7,7 +7,6 @@ use crate::models::{self, Selectable};
 
 #[derive(Serialize)]
 pub struct ResBody {
-    task: models::ResTask,
     pred: Vec<models::ResTask>,
     succ: Vec<models::ResTask>,
 }
@@ -18,8 +17,6 @@ pub async fn focus(
     pool: web::Data<models::Pool>,
 ) -> Result<HttpResponse, errors::ServiceError> {
 
-    let tid = tid.into_inner();
-
     let res_body = web::block(move || {
         use diesel::dsl::exists;
         use crate::schema::arrows::dsl::*;
@@ -28,7 +25,7 @@ pub async fn focus(
         use crate::schema::users::dsl::users;
 
         let conn = pool.get().unwrap();
-
+        let tid = tid.into_inner();
         let query = tasks
         .filter(exists(permissions
             .filter(subject.eq(&user.id))
@@ -36,11 +33,6 @@ pub async fn focus(
         ))
         .inner_join(users)
         .select(models::SelTask::columns());
-
-        let task = query
-        .filter(id.eq(&tid))
-        .first::<models::SelTask>(&conn)?
-        .to_res();
 
         let pred = query
         .filter(exists(arrows.filter(source.eq(id)).filter(target.eq(&tid))))
@@ -53,7 +45,6 @@ pub async fn focus(
         .into_iter().map(|t| t.to_res()).collect();
 
         Ok(ResBody {
-            task: task,
             pred: pred,
             succ: succ,
         })

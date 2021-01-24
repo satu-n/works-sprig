@@ -50,23 +50,23 @@ See input area [placeholder][placeholder].
 | :---: | ---: |---|
 |  |  | __INPUT__ |
 |  | `/` | focus input area |
-|  | `Ctrl` + `↓` | maximize input area |
-|  | `Ctrl` + `Enter` | submit |
-|  | `Ctrl` + `↑` | minimize input area |
+|  | `Ctrl` `↓` | maximize input area |
+|  | `Ctrl` `Enter` | submit |
+|  | `Ctrl` `↑` | minimize input area |
 |  | `Esc` | blur input area |
 |  |  | __NAVIGATE__ |
-| <img src="web/images/cmd_jk.png" width="24px" align="center"> | `J` `K` | down & up cursor |
+| <img src="web/images/cmd_jk.png" width="24px" align="center"> | `J` \| `K` | down & up cursor |
 | <img src="web/images/cmd_x.png" width="24px" align="center"> | `X` | select item at cursor |
 | <img src="web/images/cmd_u.png" width="24px" align="center"> | `U` | open URL link of item at cursor |
 | <img src="web/images/cmd_i.png" width="24px" align="center"> | `I` | Invert selection |
 |  |  | __EDIT__ |
 | <img src="web/images/cmd_s.png" width="24px" align="center"> | `S` | Star item at cursor |
 | <img src="web/images/cmd_e.png" width="24px" align="center"> | `E` | Execute selected items to archives |
-| <img src="web/images/cmd_e.png" width="24px" align="center"> | `Shift` + `E` | revert selected items to home |
+| <img src="web/images/cmd_e.png" width="24px" align="center"> | `V` \| `Shift` `E` | revert selected items to home |
 | <img src="web/images/cmd_c.png" width="24px" align="center"> | `C` | Clone selected items to input area |
 |  |  | __VIEW__ |
 | <img src="web/images/cmd_5.png" width="24px" align="center"> | `1` .. `5` | time scale |
-| <img src="web/images/cmd_wo.png" width="24px" align="center"> | `W` `O` | time shift |
+| <img src="web/images/cmd_wo.png" width="24px" align="center"> | `W` \| `O` | time shift |
 | <img src="web/images/cmd_f.png" width="24px" align="center"> | `F` | Focus item at cursor: view directly related items |
 | <img src="web/images/cmd_a.png" width="24px" align="center"> | `A` | Archives |
 | <img src="web/images/cmd_r.png" width="24px" align="center"> | `R` | Roots, no successor |
