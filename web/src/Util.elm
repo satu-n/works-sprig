@@ -424,3 +424,23 @@ decAllocation =
         |> required "open_h" Decode.int
         |> required "open_m" Decode.int
         |> required "hours" Decode.int
+
+
+scale : Int -> Timescale -> Timescale
+scale i ts =
+    let
+        list =
+            [ Timescale Year 1
+            , Timescale Quarter 1
+            , Timescale Month 1
+            , Timescale Week 1
+            , Timescale Day 1
+            , Timescale Hour 6
+            , Timescale Hour 1
+            , Timescale Minute 15
+            , Timescale Minute 1
+            ]
+    in
+    list
+        |> LX.findIndex ((==) ts)
+        |> MX.unwrap ts (\idx -> list |> LX.getAt (idx + i) |> Maybe.withDefault ts)

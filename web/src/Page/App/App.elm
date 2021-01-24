@@ -175,6 +175,12 @@ update msg mdl =
                                         '/' ->
                                             ( mdl, U.idBy "app" "input" |> Dom.focus |> Task.attempt (\_ -> NoOp) )
 
+                                        'q' ->
+                                            ( { mdl | timescale = mdl.timescale |> U.scale -1 }, Cmd.none )
+
+                                        'p' ->
+                                            ( { mdl | timescale = mdl.timescale |> U.scale 1 }, Cmd.none )
+
                                         'w' ->
                                             ( { mdl | asOf = mdl.asOf |> timeshift mdl -1, isCurrent = False }, Cmd.none )
 
@@ -232,33 +238,6 @@ update msg mdl =
 
                                         'h' ->
                                             ( mdl, Home Nothing |> request )
-
-                                        '1' ->
-                                            ( { mdl | timescale = U.timescale "Y" }, Cmd.none )
-
-                                        '2' ->
-                                            ( { mdl | timescale = U.timescale "Q" }, Cmd.none )
-
-                                        '3' ->
-                                            ( { mdl | timescale = U.timescale "M" }, Cmd.none )
-
-                                        '4' ->
-                                            ( { mdl | timescale = U.timescale "W" }, Cmd.none )
-
-                                        '5' ->
-                                            ( { mdl | timescale = U.timescale "D" }, Cmd.none )
-
-                                        '6' ->
-                                            ( { mdl | timescale = U.timescale "6h" }, Cmd.none )
-
-                                        '7' ->
-                                            ( { mdl | timescale = U.timescale "h" }, Cmd.none )
-
-                                        '8' ->
-                                            ( { mdl | timescale = U.timescale "15m" }, Cmd.none )
-
-                                        '9' ->
-                                            ( { mdl | timescale = U.timescale "m" }, Cmd.none )
 
                                         _ ->
                                             ( mdl, Cmd.none )
@@ -879,7 +858,7 @@ view mdl =
         , div [ bem "body" [] ]
             [ div [ bem "sidebar" [] ]
                 [ ul [ bem "icons" [] ]
-                    ([ ( "timescale", "1-9" )
+                    ([ ( "timescale", "qp" )
                      , ( "timeshift", "wo" )
                      , ( "updown", "jk" )
                      , ( "select", "x" )

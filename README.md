@@ -65,7 +65,7 @@ See input area [placeholder][placeholder].
 | <img src="web/images/cmd_e.png" width="24px" align="center"> | `V` \| `Shift` `E` | revert selected items to home |
 | <img src="web/images/cmd_c.png" width="24px" align="center"> | `C` | Clone selected items to input area |
 |  |  | __VIEW__ |
-| <img src="web/images/cmd_5.png" width="24px" align="center"> | `1` .. `5` | time scale |
+| <img src="web/images/cmd_qp.png" width="24px" align="center"> | `Q` \| `P` | time scale |
 | <img src="web/images/cmd_wo.png" width="24px" align="center"> | `W` \| `O` | time shift |
 | <img src="web/images/cmd_f.png" width="24px" align="center"> | `F` | Focus item at cursor: view directly related items |
 | <img src="web/images/cmd_a.png" width="24px" align="center"> | `A` | Archives |
