@@ -125,13 +125,23 @@ cubeMesh =
     in
     WebGL.triangles <|
         List.concat <|
-            [ face (vec3 115 210 22) rft rfb rbb rbt -- green
-            , face (vec3 52 101 164) rft rfb lfb lft -- blue
-            , face (vec3 237 212 0) rft lft lbt rbt -- yellow
-            , face (vec3 204 0 0) rfb lfb lbb rbb -- red
-            , face (vec3 117 80 123) lft lfb lbb lbt -- purple
-            , face (vec3 245 121 0) rbt rbb lbb lbt -- orange
+            [ face (vec3 102 111 106) rft rfb rbb rbt
+            , face (vec3 102 111 106) rft rfb lfb lft
+            , face (vec3 102 111 106) rft lft lbt rbt
+            , face (vec3 102 111 106) rfb lfb lbb rbb
+            , face (vec3 102 111 106) lft lfb lbb lbt
+            , face (vec3 102 111 106) rbt rbb lbb lbt
             ]
+
+
+
+-- [ face (vec3 115 210 22) rft rfb rbb rbt -- green
+-- , face (vec3 52 101 164) rft rfb lfb lft -- blue
+-- , face (vec3 237 212 0) rft lft lbt rbt -- yellow
+-- , face (vec3 204 0 0) rfb lfb lbb rbb -- red
+-- , face (vec3 117 80 123) lft lfb lbb lbt -- purple
+-- , face (vec3 245 121 0) rbt rbb lbb lbt -- orange
+-- ]
 
 
 face : Vec3 -> Vec3 -> Vec3 -> Vec3 -> Vec3 -> List ( Vertex, Vertex, Vertex )
