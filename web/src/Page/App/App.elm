@@ -1000,6 +1000,8 @@ dotString mdl item =
                     (Dotter
                         (l |> Time.posixToMillis)
                         (r |> Time.posixToMillis)
+                        mdl.user.zone
+                        mdl.timescale
                     )
                     item
             )
@@ -1009,6 +1011,8 @@ dotString mdl item =
 type alias Dotter =
     { l : Millis
     , r : Millis
+    , zone : Time.Zone
+    , scale : U.Timescale
     }
 
 
@@ -1024,15 +1028,32 @@ dot dotter item =
         hasStartable =
             has item.startable
 
+        hasBoundary =
+            U.scales
+                |> LX.zip
+                    [ \t -> Time.toYear dotter.zone t |> remainderBy 10 |> (==) 0
+                    , \t -> List.member (Time.toMonth dotter.zone t) [ Time.Apr, Time.May, Time.Jun ]
+                    , \t -> List.member (Time.toMonth dotter.zone t) [ Time.Apr, Time.Jul, Time.Oct, Time.Jan ]
+                    , \t -> List.member (Time.toDay dotter.zone t) (List.range 1 7)
+                    , \t -> Time.toWeekday dotter.zone t == Time.Sun
+                    , \t -> List.member (Time.toHour dotter.zone t) (List.range 0 5)
+                    , \t -> List.member (Time.toHour dotter.zone t) [ 0, 6, 12, 18 ]
+                    , \t -> List.member (Time.toMinute dotter.zone t) (List.range 0 14)
+                    , \t -> List.member (Time.toMinute dotter.zone t) [ 0, 15, 30, 45 ]
+                    ]
+                |> LX.find (\( _, scl ) -> scl == dotter.scale)
+                |> MX.unwrap False (\( cnd, _ ) -> dotter.r |> Time.millisToPosix |> cnd)
+
         hasSchedule =
             item.schedules
                 |> List.any
                     (\sch ->
-                        (dotter.l |> U.between sch.l sch.r)
-                            || (sch.l |> U.between dotter.l dotter.r)
+                        ( sch.l, sch.r ) |> U.intersect ( dotter.l, dotter.r )
                     )
     in
-    U.overwrite '.' [ '#', '[', ']' ] [ hasSchedule, hasStartable, hasDeadline ]
+    U.overwrite '.'
+        [ ':', '#', '[', ']' ]
+        [ hasBoundary, hasSchedule, hasStartable, hasDeadline ]
 
 
 

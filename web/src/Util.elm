@@ -411,6 +411,11 @@ between l r x =
     l < x && x < r
 
 
+intersect : ( comparable, comparable ) -> ( comparable, comparable ) -> Bool
+intersect ( l0, r0 ) ( l1, r1 ) =
+    (l0 |> between l1 r1) || (l1 |> between l0 r0)
+
+
 type alias Allocation =
     { open_h : Int
     , open_m : Int
@@ -428,19 +433,20 @@ decAllocation =
 
 scale : Int -> Timescale -> Timescale
 scale i ts =
-    let
-        list =
-            [ Timescale Year 1
-            , Timescale Quarter 1
-            , Timescale Month 1
-            , Timescale Week 1
-            , Timescale Day 1
-            , Timescale Hour 6
-            , Timescale Hour 1
-            , Timescale Minute 15
-            , Timescale Minute 1
-            ]
-    in
-    list
+    scales
         |> LX.findIndex ((==) ts)
-        |> MX.unwrap ts (\idx -> list |> LX.getAt (idx + i) |> Maybe.withDefault ts)
+        |> MX.unwrap ts (\idx -> scales |> LX.getAt (idx + i) |> Maybe.withDefault ts)
+
+
+scales : List Timescale
+scales =
+    [ Timescale Year 1
+    , Timescale Quarter 1
+    , Timescale Month 1
+    , Timescale Week 1
+    , Timescale Day 1
+    , Timescale Hour 6
+    , Timescale Hour 1
+    , Timescale Minute 15
+    , Timescale Minute 1
+    ]
