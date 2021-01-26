@@ -14,6 +14,7 @@ __Under development:__
 
 <!-- INTERNAL LINK -->
 [placeholder]: web/src/Page/App/Placeholder.elm
+[priority]: _images/priority.png
 
 ## What's this
 
@@ -25,17 +26,11 @@ Sprig the Task Breaker ⚡
 
 [demo][demo]
 
-### Feature
-
-* 
-* 
-* 
-
-<!-- ### Zen of Sprig
+### Zen of Sprig
 
 * __Focus on the top task.__
+* __List up, and enter as is.__
 * __Break it down into processable units.__
-* __List up, and enter as is.__ -->
 
 ## How to use
 
@@ -44,7 +39,6 @@ Sprig the Task Breaker ⚡
 See input area [placeholder][placeholder].
 
 ### Shortcuts
-<!-- TODO timescale 1-9 -->
 
 | Icon | Shortcut | Operation |
 | :---: | ---: |---|
@@ -72,6 +66,14 @@ See input area [placeholder][placeholder].
 | <img src="web/images/cmd_r.png" width="24px" align="center"> | `R` | Roots, no successor |
 | <img src="web/images/cmd_l.png" width="24px" align="center"> | `L` | Leaves, no predecessor |
 | <img src="web/images/cmd_h.png" width="24px" align="center"> | `H` | Home |
+
+### View
+
+#### Priority
+
+![priority][priority]
+
+Priority indicates "how many hours this plan will exceed the direct or indirect deadline".
 
 ### Logout
 

@@ -353,11 +353,6 @@ int =
     String.fromInt
 
 
-lt : Time.Posix -> Time.Posix -> Bool
-lt right left =
-    Time.posixToMillis left |> (\l -> l < Time.posixToMillis right)
-
-
 overwrite : a -> List a -> List Bool -> a
 overwrite default xs bs =
     LX.zip xs bs
@@ -406,12 +401,34 @@ decimal n x =
     x * 10 ^ (n |> toFloat) |> round |> String.fromInt |> (\s -> SX.insertAt "." (String.length s - n) s)
 
 
-between : comparable -> comparable -> comparable -> Bool
+lt : Time.Posix -> Time.Posix -> Bool
+lt r l =
+    (l |> Time.posixToMillis) < (r |> Time.posixToMillis)
+
+
+le : Time.Posix -> Time.Posix -> Bool
+le r l =
+    (l |> Time.posixToMillis) <= (r |> Time.posixToMillis)
+
+
+
+-- between_ : comparable -> comparable -> comparable -> Bool
+-- between_ l r x =
+--     (l <= x) && (x < r)
+
+
+between : Time.Posix -> Time.Posix -> Time.Posix -> Bool
 between l r x =
-    l < x && x < r
+    (l |> le x) && (x |> lt r)
 
 
-intersect : ( comparable, comparable ) -> ( comparable, comparable ) -> Bool
+
+-- intersect_ : ( comparable, comparable ) -> ( comparable, comparable ) -> Bool
+-- intersect_ ( l0, r0 ) ( l1, r1 ) =
+--     (l0 |> between_ l1 r1) || (l1 |> between_ l0 r0)
+
+
+intersect : ( Time.Posix, Time.Posix ) -> ( Time.Posix, Time.Posix ) -> Bool
 intersect ( l0, r0 ) ( l1, r1 ) =
     (l0 |> between l1 r1) || (l1 |> between l0 r0)
 
@@ -449,4 +466,6 @@ scales =
     , Timescale Hour 1
     , Timescale Minute 15
     , Timescale Minute 1
+
+    -- , Timescale Second 1
     ]

@@ -236,8 +236,7 @@ impl ResCommand {
                     priority: None,
                     weight: None,
                     link: None, // TODO tutorial external
-                    is_leaf: false,
-                    is_root: false,
+                    schedule: None,
                 },
             ],
         }

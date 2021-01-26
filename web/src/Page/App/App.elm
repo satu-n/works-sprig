@@ -5,12 +5,13 @@ import Browser.Dom as Dom
 import Browser.Events as Events
 import EndPoint as EP
 import Html exposing (..)
-import Html.Attributes exposing (alt, classList, href, placeholder, spellcheck, src, target, value)
+import Html.Attributes exposing (alt, classList, href, placeholder, property, spellcheck, src, target, value)
 import Html.Events exposing (onBlur, onClick, onFocus, onInput)
 import Json.Decode as Decode exposing (Decoder, bool, float, int, list, null, nullable, oneOf, string)
 import Json.Decode.Extra exposing (datetime)
-import Json.Decode.Pipeline exposing (optional, required, requiredAt)
+import Json.Decode.Pipeline exposing (required, requiredAt)
 import Json.Encode as Encode
+import Json.Encode.Extra as EX
 import List.Extra as LX
 import Maybe.Extra as MX
 import Page as P
@@ -300,45 +301,24 @@ update msg mdl =
                             ]
                                 |> List.map (\s -> option == Just s)
                                 |> U.overwrite Home_ [ Leaves, Roots, Archives ]
-
-                        items =
-                            (view_ == Archives)
-                                |> BX.ifElse res
-                                    ({ mdl | items = res }
-                                        |> schedule
-                                        |> (\m ->
-                                                m.items
-                                                    |> List.filter
-                                                        (case view_ of
-                                                            Leaves ->
-                                                                .isLeaf
-
-                                                            Roots ->
-                                                                .isRoot
-
-                                                            _ ->
-                                                                \_ -> True
-                                                        )
-                                           )
-                                    )
                     in
                     ( { mdl
                         | msg =
                             mdl.msgFix
                                 |> BX.ifElse mdl.msg
-                                    (items
+                                    (res
                                         |> List.isEmpty
                                         |> (&&) (view_ == Home_)
                                         |> BX.ifElse "Nothing to execute, working tree clean."
                                             ([ option |> MX.unwrap False ((==) "archives") |> BX.ifElse "Last" ""
-                                             , items |> List.length |> singularize (option |> Maybe.withDefault "items")
+                                             , res |> List.length |> singularize (option |> Maybe.withDefault "items")
                                              , "here."
                                              ]
                                                 |> String.join " "
                                             )
                                     )
                         , msgFix = False
-                        , items = items
+                        , items = res
                         , selected = []
                         , view = view_
                         , timescale = mdl.user.timescale
@@ -366,35 +346,39 @@ update msg mdl =
                                 |> input0
 
                         ResTextC (ResUser (ResModify m)) ->
-                            ( case m of
+                            (case m of
                                 Email s ->
-                                    { mdl | msg = "User email modified: " ++ s }
+                                    ( { mdl | msg = "User email modified: " ++ s }, Cmd.none )
 
                                 Password _ ->
-                                    { mdl | msg = "User password modified." }
+                                    ( { mdl | msg = "User password modified." }, Cmd.none )
 
                                 Name s ->
-                                    { mdl
-                                        | msg = "User name modified: " ++ s
-                                        , user =
+                                    ( { mdl
+                                        | user =
                                             let
                                                 user =
                                                     mdl.user
                                             in
                                             { user | name = s }
-                                    }
+                                        , msg = "User name modified: " ++ s
+                                      }
+                                    , Cmd.none
+                                    )
 
                                 Timescale s ->
-                                    { mdl
-                                        | msg = "User timescale modified: " ++ s
-                                        , timescale = U.timescale s
-                                        , user =
+                                    ( { mdl
+                                        | user =
                                             let
                                                 user =
                                                     mdl.user
                                             in
                                             { user | timescale = U.timescale s }
-                                    }
+                                        , msg = "User timescale modified: " ++ s
+                                        , timescale = U.timescale s
+                                      }
+                                    , Cmd.none
+                                    )
 
                                 Allocations alcs ->
                                     let
@@ -413,28 +397,30 @@ update msg mdl =
                                                     )
                                                 |> String.join ", "
                                     in
-                                    { mdl
-                                        | msg = "User time allocations modified: " ++ s
-                                        , user =
+                                    ( { mdl
+                                        | user =
                                             let
                                                 user =
                                                     mdl.user
                                             in
                                             { user | allocations = alcs }
-                                    }
-                            , Cmd.none
+                                        , msg = "User time allocations modified: " ++ s
+                                        , msgFix = True
+                                      }
+                                    , Home Nothing |> request
+                                    )
                             )
                                 |> input0
 
                         ResTextC (ResSearch_ r) ->
                             ( { mdl
-                                | items = r.items
-                                , msg =
+                                | msg =
                                     [ (r.items |> List.length |> singularize "hits") ++ ":"
                                     , -- TODO actual search condition
                                       "actual search condition"
                                     ]
                                         |> String.join " "
+                                , items = r.items
                                 , view = Search
                               }
                             , Cmd.none
@@ -442,12 +428,12 @@ update msg mdl =
 
                         ResTextC (ResTutorial_ r) ->
                             ( { mdl
-                                | items = r.items
-                                , msg =
+                                | msg =
                                     [ r.items |> List.length |> singularize "materials"
                                     , "here."
                                     ]
                                         |> String.join " "
+                                , items = r.items
                                 , view = Tutorial
                               }
                             , Cmd.none
@@ -493,7 +479,7 @@ update msg mdl =
                             , "Succ." ++ U.len res.succ
                             ]
                                 |> String.join " "
-                        , items = res.pred ++ ({ item | schedules = [], priority = Nothing } :: res.succ) -- TODO not so beautiful
+                        , items = res.pred ++ ({ item | schedule = Nothing, priority = Nothing } :: res.succ) -- TODO not so beautiful
                         , selected = []
                         , cursor = List.length res.pred
                         , view = Focus_
@@ -605,153 +591,6 @@ singularize plural i =
     ]
         |> LX.find (\( p, _ ) -> p == plural)
         |> MX.unwrap plural (\( p, s ) -> SX.pluralize s p i)
-
-
-type alias Millis =
-    Int
-
-
-type alias Stripe =
-    { l : Millis
-    , r : Millis
-    }
-
-
-type alias SubScheduler =
-    { cursor : Millis
-    , stripes : List Stripe
-    , weight : Millis
-    , result : List Schedule
-    }
-
-
-type alias Scheduler =
-    { cursor : Millis
-    , stripes : List Stripe
-    , source : List Item
-    , result : List Item
-    }
-
-
-schedule : Mdl -> Mdl
-schedule mdl =
-    let
-        daily =
-            mdl.user.allocations
-                |> List.map .hours
-                |> List.sum
-    in
-    if not (0 < daily) then
-        mdl
-
-    else
-        let
-            zone =
-                mdl.user.zone
-
-            from =
-                mdl.now |> TX.add TX.Day -1 zone
-
-            until =
-                let
-                    days =
-                        mdl.items
-                            |> List.filterMap .weight
-                            |> List.sum
-                            |> (\w -> round w // daily)
-                in
-                mdl.items
-                    |> List.filterMap .startable
-                    |> List.map Time.posixToMillis
-                    |> List.maximum
-                    |> MX.unwrap mdl.now Time.millisToPosix
-                    |> TX.add TX.Day (days + 1) zone
-
-            stripes =
-                TX.range TX.Day 1 zone from until
-                    |> List.concatMap
-                        (\day ->
-                            mdl.user.allocations
-                                |> List.map
-                                    (\alc ->
-                                        let
-                                            p =
-                                                day |> TX.posixToParts zone
-
-                                            l =
-                                                { p | hour = alc.open_h, minute = alc.open_m } |> TX.partsToPosix zone
-
-                                            r =
-                                                l |> TX.add TX.Hour alc.hours zone
-                                        in
-                                        Stripe
-                                            (l |> Time.posixToMillis)
-                                            (r |> Time.posixToMillis)
-                                    )
-                        )
-
-            subLoop : SubScheduler -> SubScheduler
-            subLoop sub =
-                if sub.weight == 0 then
-                    sub
-
-                else
-                    case sub.stripes |> LX.uncons of
-                        Nothing ->
-                            sub
-
-                        Just ( str, strs ) ->
-                            let
-                                point =
-                                    max str.l sub.cursor
-
-                                draw =
-                                    min (str.r - point) sub.weight |> max 0
-
-                                weight =
-                                    sub.weight - draw
-                            in
-                            subLoop
-                                { sub
-                                    | cursor = point + draw
-                                    , stripes = weight == 0 |> BX.ifElse sub.stripes strs
-                                    , weight = weight
-                                    , result = 0 < draw |> BX.ifElse (Schedule point (point + draw) :: sub.result) sub.result
-                                }
-
-            loop : Scheduler -> List Item
-            loop sch =
-                case sch.source |> LX.uncons of
-                    Nothing ->
-                        sch.result |> List.reverse
-
-                    Just ( item, items ) ->
-                        let
-                            sub =
-                                subLoop
-                                    { cursor = item.startable |> MX.unwrap sch.cursor (\t -> max sch.cursor (t |> Time.posixToMillis))
-                                    , stripes = sch.stripes
-                                    , weight = item.weight |> MX.unwrap 0 (\w -> w * 60 * 60 * 1000 |> round)
-                                    , result = []
-                                    }
-                        in
-                        loop
-                            { sch
-                                | cursor = sub.cursor
-                                , source = items
-                                , stripes = sub.stripes
-                                , result = { item | schedules = sub.result } :: sch.result
-                            }
-
-            newItems =
-                loop
-                    { cursor = mdl.now |> Time.posixToMillis
-                    , source = mdl.items
-                    , stripes = stripes
-                    , result = []
-                    }
-        in
-        { mdl | items = newItems }
 
 
 clone : Mdl -> List Tid -> String
@@ -944,7 +783,12 @@ viewItem mdl ( idx, item ) =
         , td [ bem "star" [], Request (Star item.id) |> onClick ] [ item.isStarred |> BX.ifElse "★" "☆" |> text ]
         , td [ bem "title" [] ] [ span [] [ item.title |> text |> (\t -> item.link |> MX.unwrap t (\l -> a [ href l, target "_blank" ] [ t ])) ] ]
         , td [ bem "startable" [] ] [ item.startable |> MX.unwrap "-" (U.strDT mdl.timescale mdl.user.zone) |> text ]
-        , td [ bem "bar" [], Request (Focus item) |> onClick ] [ item |> dotString mdl |> text ]
+        , td
+            [ bem "bar" []
+            , Request (Focus item) |> onClick
+            , property "schedule" (item.schedule |> encSchedule mdl.user.zone)
+            ]
+            [ item |> dotString mdl |> text ]
         , td
             [ bem "deadline" [ ( "overdue", item |> isOverdue mdl ) ] ]
             [ item.deadline |> MX.unwrap "-" (U.strDT mdl.timescale mdl.user.zone) |> text ]
@@ -998,10 +842,11 @@ dotString mdl item =
                 in
                 dot
                     (Dotter
-                        (l |> Time.posixToMillis)
-                        (r |> Time.posixToMillis)
+                        l
+                        r
                         mdl.user.zone
                         mdl.timescale
+                        mdl.user.allocations
                     )
                     item
             )
@@ -1009,24 +854,54 @@ dotString mdl item =
 
 
 type alias Dotter =
-    { l : Millis
-    , r : Millis
+    { l : Posix
+    , r : Posix
     , zone : Time.Zone
     , scale : U.Timescale
+    , allocations : List U.Allocation
     }
 
 
 dot : Dotter -> Item -> Char
 dot dotter item =
     let
-        has =
-            MX.unwrap False (\t -> t |> Time.posixToMillis |> U.between dotter.l dotter.r)
-
         hasDeadline =
-            has item.deadline
+            item.deadline |> MX.unwrap False (U.between dotter.l dotter.r)
 
         hasStartable =
-            has item.startable
+            item.startable |> MX.unwrap False (U.between dotter.l dotter.r)
+
+        hasSchedule =
+            item.schedule
+                |> MX.unwrap False
+                    (\sch -> ( sch.l, sch.r ) |> U.intersect ( dotter.l, dotter.r ))
+
+        hasAllocation =
+            let
+                parts =
+                    dotter.l |> TX.posixToParts dotter.zone
+
+                allocations =
+                    List.range -1 1
+                        |> List.concatMap
+                            (\i ->
+                                dotter.allocations
+                                    |> List.map
+                                        (\alc ->
+                                            let
+                                                open =
+                                                    { parts | hour = alc.open_h, minute = alc.open_m }
+                                                        |> TX.partsToPosix dotter.zone
+                                                        |> TX.add TX.Day i dotter.zone
+
+                                                close =
+                                                    open |> TX.add TX.Hour alc.hours dotter.zone
+                                            in
+                                            ( open, close )
+                                        )
+                            )
+            in
+            allocations |> List.any (U.intersect ( dotter.l, dotter.r ))
 
         hasBoundary =
             U.scales
@@ -1042,18 +917,11 @@ dot dotter item =
                     , \t -> List.member (Time.toMinute dotter.zone t) [ 0, 15, 30, 45 ]
                     ]
                 |> LX.find (\( _, scl ) -> scl == dotter.scale)
-                |> MX.unwrap False (\( cnd, _ ) -> dotter.r |> Time.millisToPosix |> cnd)
-
-        hasSchedule =
-            item.schedules
-                |> List.any
-                    (\sch ->
-                        ( sch.l, sch.r ) |> U.intersect ( dotter.l, dotter.r )
-                    )
+                |> MX.unwrap False (\( cnd, _ ) -> dotter.r |> cnd)
     in
     U.overwrite '.'
         [ ':', '#', '[', ']' ]
-        [ hasBoundary, hasSchedule, hasStartable, hasDeadline ]
+        [ hasBoundary, hasSchedule && hasAllocation, hasStartable, hasDeadline ]
 
 
 
@@ -1344,9 +1212,13 @@ type alias Item =
     , priority : Maybe Float
     , weight : Maybe Float
     , link : Maybe String
-    , schedules : List Schedule
-    , isLeaf : Bool
-    , isRoot : Bool
+    , schedule : Maybe Schedule
+    }
+
+
+type alias Schedule =
+    { l : Posix
+    , r : Posix
     }
 
 
@@ -1363,19 +1235,22 @@ decItem =
         |> required "priority" (nullable float)
         |> required "weight" (nullable float)
         |> required "link" (nullable string)
-        |> optional "schedules" (list decSchedule) []
-        |> required "is_leaf" bool
-        |> required "is_root" bool
-
-
-type alias Schedule =
-    { l : Millis
-    , r : Millis
-    }
+        |> required "schedule" (nullable decSchedule)
 
 
 decSchedule : Decoder Schedule
 decSchedule =
     Decode.succeed Schedule
-        |> required "l" (datetime |> Decode.map Time.posixToMillis)
-        |> required "r" (datetime |> Decode.map Time.posixToMillis)
+        |> required "l" datetime
+        |> required "r" datetime
+
+
+encSchedule : Time.Zone -> Maybe Schedule -> Encode.Value
+encSchedule zone =
+    EX.maybe
+        (\sch ->
+            Encode.object
+                [ ( "l", Encode.string (sch.l |> U.clock True zone) )
+                , ( "r", Encode.string (sch.r |> U.clock True zone) )
+                ]
+        )

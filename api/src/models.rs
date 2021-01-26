@@ -23,7 +23,7 @@ pub struct Allocation {
     pub hours: i32,
 }
 
-#[derive(Queryable, Insertable, Debug, PartialEq)]
+#[derive(Queryable, Insertable, Debug, PartialEq, Clone)]
 pub struct Arrow {
     pub source: i32,
     pub target: i32,
@@ -109,8 +109,13 @@ pub struct ResTask {
     pub priority: Option<f32>,
     pub weight: Option<f32>,
     pub link: Option<String>,
-    pub is_leaf: bool,
-    pub is_root: bool,
+    pub schedule: Option<Schedule>,
+}
+
+#[derive(Serialize)]
+pub struct Schedule {
+    pub l: DateTime<Utc>,
+    pub r: DateTime<Utc>,
 }
 
 #[derive(Queryable)]
@@ -169,13 +174,12 @@ impl SelTask {
             priority: None,
             weight: self.weight,
             link: self.link,
-            is_leaf: false,
-            is_root: false,
+            schedule: None,
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Arrows {
     pub arrows: Vec<Arrow>,
 }
@@ -325,12 +329,6 @@ impl Arrows {
             return true
         }
         self.list(LR::Leaf).iter().any(|leaf| Tid::from(*leaf).paths_to(LR::Root, &self).is_empty())
-    }
-    pub fn set_lr(&self, tasks: &mut Vec<ResTask>) {
-        for t in tasks {
-            t.is_leaf = Tid::from(t.id).is(LR::Leaf, &self);
-            t.is_root = Tid::from(t.id).is(LR::Root, &self);
-        }
     }
 }
 
